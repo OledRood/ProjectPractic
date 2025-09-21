@@ -40,4 +40,5 @@ build/
 # OS generated files
 *.pid
 *.seed
-*.pid.lock
+*.pid.lock.DS_Store
+../.DS_Store
