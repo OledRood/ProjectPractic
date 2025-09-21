@@ -5,7 +5,6 @@ import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
 
-# Определяем связи между суставами для анатомически корректного скелета
 SKELETON_CONNECTIONS = [
     ('LEFT_SHOULDER', 'RIGHT_SHOULDER'),
     ('LEFT_SHOULDER', 'LEFT_ELBOW'),
@@ -57,21 +56,17 @@ def draw_skeleton(image, keypoints, bbox, draw_torso=True, alpha=0.6):
     """
     overlay = image.copy()
     
-    # Рисуем линии скелета (тонкие, чтобы выглядели как "сканирование")
     for start, end in SKELETON_CONNECTIONS:
         if start in keypoints and end in keypoints:
-            cv2.line(overlay, keypoints[start], keypoints[end], (0, 255, 255), 1)  # Желтые линии, толщина 1
+            cv2.line(overlay, keypoints[start], keypoints[end], (0, 255, 255), 1)
 
-    # Рисуем ключевые точки (суставы) четко и ярко
     for name, (x, y) in keypoints.items():
-        cv2.circle(overlay, (x, y), 3, (0, 0, 255), -1)  # Красные точки, радиус 3
+        cv2.circle(overlay, (x, y), 3, (0, 0, 255), -1)
 
-    # Рисуем торс как тонкий контур
     if draw_torso and all(pt in keypoints for pt in TORSO_POINTS):
         pts = np.array([keypoints[pt] for pt in TORSO_POINTS], np.int32)
         cv2.polylines(overlay, [pts], isClosed=True, color=(255, 255, 0), thickness=1)
 
-    # Накладываем оверлей с полупрозрачностью
     cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
 
 def visualize(
@@ -98,7 +93,6 @@ def visualize(
     data = defaultdict(list)
     meta = {}
 
-    # Читаем CSV файл с аннотациями
     try:
         with open(csv_path, 'r') as f:
             reader = csv.DictReader(f)
@@ -110,12 +104,11 @@ def visualize(
                         'x_norm': float(row['x_norm']),
                         'y_norm': float(row['y_norm'])
                     })
-                    # Извлекаем метаданные, включая bounding box
                     meta[img_path] = {
                         'center_x': float(row['center_x']),
                         'center_y': float(row['center_y']),
                         'unit_length': float(row['unit_length']),
-                        'bbox': eval(row['bbox'])  # Предполагаем, что bbox сохранен как список
+                        'bbox': eval(row['bbox'])
                     }
     except FileNotFoundError:
         print(f"CSV файл не найден: {csv_path}")
@@ -141,12 +134,10 @@ def visualize(
         if clean_canvas:
             image = np.ones_like(image) * 255
 
-        # Формируем словарь ключевых точек
         keypoints_norm = {kp['landmark']: {'x_norm': kp['x_norm'], 'y_norm': kp['y_norm']} 
                          for kp in data[img_path]}
         meta_info = meta[img_path]
         
-        # Де-нормализация с учетом bounding box
         keypoints_scaled = denormalize_keypoints(
             keypoints_norm, 
             meta_info['center_x'], 
@@ -156,7 +147,6 @@ def visualize(
             meta_info['bbox']
         )
 
-        # Отрисовка скелета
         draw_skeleton(image, keypoints_scaled, meta_info['bbox'])
 
         if output_dir:

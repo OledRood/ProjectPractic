@@ -5,7 +5,6 @@ import os
 import shutil
 import random
 
-# Константы
 MIN_SIZE = (300, 300)
 DOWNLOAD_LIMIT = 100
 TARGET_COUNT = 300
@@ -15,7 +14,6 @@ CLASSES = {
     "lying": "person lying down full body"
 }
 
-# Пути
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATASET_DIR = os.path.join(PROJECT_ROOT, "project_root", "data", "dataset")
 PREVIEW_HTML = os.path.join(PROJECT_ROOT, "project_root", "data", "preview.html")
@@ -26,7 +24,6 @@ def download_images():
         class_dir = os.path.join(DATASET_DIR, class_name)
         temp_dir = os.path.join(DATASET_DIR, f"temp_{class_name}")
         
-        # Создаем временную папку для загрузки
         os.makedirs(temp_dir, exist_ok=True)
         
         print(f"[🔽] Downloading images for '{class_name}'...")
@@ -40,7 +37,6 @@ def download_images():
             verbose=True
         )
 
-        # Переносим файлы из временной папки в целевую
         downloaded_dir = os.path.join(temp_dir, query)
         if os.path.exists(downloaded_dir):
             os.makedirs(class_dir, exist_ok=True)
@@ -52,7 +48,6 @@ def download_images():
                 except Exception as e:
                     print(f"[⚠️] Failed to move {src}: {e}")
             
-            # Удаляем временные папки
             shutil.rmtree(temp_dir)
 
 def clean_images():
@@ -68,25 +63,21 @@ def clean_images():
         for img_name in os.listdir(class_dir):
             img_path = os.path.join(class_dir, img_name)
             
-            # Пропускаем папки (на случай, если что-то осталось)
             if os.path.isdir(img_path):
                 continue
                 
             try:
                 with Image.open(img_path) as img:
-                    # Проверка размера
                     if img.size[0] < MIN_SIZE[0] or img.size[1] < MIN_SIZE[1]:
                         os.remove(img_path)
                         continue
 
-                    # Проверка дубликатов
                     img_hash = imagehash.average_hash(img)
                     if img_hash in hashes:
                         os.remove(img_path)
                         continue
                     hashes.add(img_hash)
 
-                    # Конвертация в JPG
                     if not img_name.lower().endswith('.jpg'):
                         new_name = f"{os.path.splitext(img_name)[0]}.jpg"
                         new_path = os.path.join(class_dir, new_name)
@@ -121,7 +112,6 @@ def augment_dataset():
             
             try:
                 with Image.open(img_path) as img:
-                    # Аугментации
                     transformations = [
                         img.rotate(90),
                         img.rotate(180),
@@ -184,7 +174,6 @@ def create_preview():
     print(f"[✅] Preview saved to: {PREVIEW_HTML}")
 
 if __name__ == "__main__":
-    # Проверка путей
     print(f"[DEBUG] PROJECT_ROOT: {PROJECT_ROOT}")
     print(f"[DEBUG] DATASET_DIR: {DATASET_DIR}")
     

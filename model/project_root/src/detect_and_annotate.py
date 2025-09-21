@@ -63,7 +63,7 @@ class PoseProcessor:
         lb = landmarks[self.mp_pose.PoseLandmark.LEFT_HIP.value]
 
         if ls.visibility < 0.5 or rb.visibility < 0.5 or rs.visibility < 0.5 or lb.visibility < 0.5:
-            return 0.1  # Резервная единица длины
+            return 0.1
 
         diag1 = np.hypot(ls.x - rb.x, ls.y - rb.y)
         diag2 = np.hypot(rs.x - lb.x, rs.y - lb.y)

@@ -31,15 +31,12 @@ class PoseDataset(Dataset):
             
             grouped = df.groupby('image_path')
             for img_path, group in grouped:
-                # Initialize all landmarks with zeros
                 keypoints = {landmark: [0.0, 0.0] for landmark in self.expected_landmarks}
                 
-                # Fill available landmarks
                 for _, row in group.iterrows():
                     if row['landmark'] in self.expected_landmarks:
                         keypoints[row['landmark']] = [row['x_norm'], row['y_norm']]
                 
-                # Create feature vector in consistent order
                 features = []
                 for landmark in self.expected_landmarks:
                     features.extend(keypoints[landmark])
@@ -80,28 +77,22 @@ def train_pose_classifier(
     learning_rate=0.001
 ):
     """Train pose classification model"""
-    # Create dataset
     dataset = PoseDataset(csv_paths)
     
-    # Split dataset
     train_size = int(0.8 * len(dataset))
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
     
-    # Create data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
-    # Initialize model
     input_size = len(dataset[0][0])
     num_classes = len(dataset.encoder.classes_)
     model = PoseCNN(input_size, num_classes)
     
-    # Training setup
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     
-    # Training loop
     for epoch in range(epochs):
         model.train()
         total_loss = 0
@@ -113,7 +104,6 @@ def train_pose_classifier(
             optimizer.step()
             total_loss += loss.item()
         
-        # Validation
         model.eval()
         correct = 0
         total = 0
@@ -129,7 +119,6 @@ def train_pose_classifier(
                 all_preds.extend(predicted.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
         
-        # Print classification report every 5 epochs
         if (epoch + 1) % 5 == 0 or epoch == epochs - 1:
             print(f"\nEpoch {epoch+1}/{epochs} Classification Report:")
             print(classification_report(
@@ -140,7 +129,6 @@ def train_pose_classifier(
         print(f'Epoch {epoch+1}/{epochs}, Loss: {total_loss/len(train_loader):.4f}, '
               f'Accuracy: {100 * correct / total:.2f}%')
     
-    # Save model
     os.makedirs(os.path.dirname(model_save_path), exist_ok=True)
     torch.save({
         'model_state_dict': model.state_dict(),
