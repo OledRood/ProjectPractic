@@ -1,0 +1,27 @@
+{
+    "image_size": [800, 600],  
+    "line_thickness": 2,
+    "joint_radius": 5,
+    "font_scale": 0.5,
+    "figure_size": [8, 6],
+    "colors": {
+        "face": [255, 0, 0],   
+        "arms": [0, 255, 0],
+        "legs": [0, 0, 255],
+        "torso": [255, 255, 0]
+    },
+    "poses": {
+        "standing": {
+            "z_scale": 1.2,
+            "highlight_color": [0, 255, 255]
+        },
+        "sitting": {
+            "z_scale": 0.8,
+            "highlight_color": [255, 0, 255]
+        },
+        "lying": {
+            "z_scale": 0.5,
+            "highlight_color": [255, 255, 0]
+        }
+    }
+}
