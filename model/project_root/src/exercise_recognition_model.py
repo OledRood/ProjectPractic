@@ -7,6 +7,7 @@ from sklearn.metrics import accuracy_score
 import yaml
 from pathlib import Path
 import joblib
+from sklearn.preprocessing import LabelEncoder
 
 class ExerciseClassifier:
     def __init__(self, config_path=None, model_path=None):
@@ -20,20 +21,36 @@ class ExerciseClassifier:
             max_depth=model_config.get('max_depth', 10),
             random_state=model_config.get('random_state', 42)
         )
-        self.feature_names = model_config.get('features', ['x_norm', 'y_norm', 'visibility'])
-        self.exercise_types = model_config.get('exercise_types', ['unknown'])
+        self.feature_names = model_config.get('features', ['x_norm', 'y_norm', 'visibility', 'center_x', 'center_y', 'unit_length'])
+        self.exercise_types = model_config.get('exercise_types', ['unknown', 'squat', 'push_up', 'long_jump'])
         self.correctness_thresholds = model_config.get('correctness_thresholds', {'min_visibility': 0.5})
         self.correctness_model = RandomForestClassifier(
             n_estimators=100, max_depth=10, random_state=42
         )
         self.model_path = model_path or str(Path(__file__).parent.parent / 'models/exercise_classifier.joblib')
+        self.label_encoder = LabelEncoder()
+        self.label_encoder.fit(self.exercise_types)
 
         # Пытаемся загрузить сохранённую модель
         if os.path.exists(self.model_path):
-            self.model, self.correctness_model = joblib.load(self.model_path)
-            print(f"Загружена сохранённая модель из {self.model_path}")
+            try:
+                loaded_data = joblib.load(self.model_path)
+                if isinstance(loaded_data, tuple):
+                    if len(loaded_data) == 2:  # Старый формат: только модели
+                        self.model, self.correctness_model = loaded_data
+                        print(f"Загружена старая модель из {self.model_path}")
+                    elif len(loaded_data) == 3:  # Новый формат: модели + LabelEncoder
+                        self.model, self.correctness_model, self.label_encoder = loaded_data
+                        print(f"Загружена полная модель из {self.model_path}")
+                else:
+                    raise ValueError("Неверный формат сохранённой модели")
+            except Exception as e:
+                print(f"Ошибка при загрузке модели: {e}")
+                # Создаём новые модели
+                self.model = RandomForestClassifier()
+                self.correctness_model = RandomForestClassifier()
         else:
-            print(f"Модель не найдена в {self.model_path}, будет обучена заново")
+            print(f"Модель не найдена в {self.model_path}, будет создана новая")
 
     def extract_features(self, row):
         features = []
@@ -52,10 +69,10 @@ class ExerciseClassifier:
                 features = self.extract_features(row)
                 if len(features) == len(self.feature_names):
                     X.append(features)
-                    frame_id = int(row['frame_id'])
-                    # Простая эвристика для примера (нужно заменить на реальную логику)
-                    y_exercise.append(self.exercise_types[frame_id % len(self.exercise_types)])  # Циклическое распределение
-                    y_correctness.append(1 if float(row.get('visibility', 0)) > self.correctness_thresholds['min_visibility'] else 0)
+                    exercise_type = row.get('exercise_type', 'unknown')
+                    y_exercise.append(exercise_type)
+                    is_correct = int(row.get('is_correct', 0))
+                    y_correctness.append(is_correct)
         return np.array(X), np.array(y_exercise), np.array(y_correctness)
 
     def train(self, csv_path):
@@ -67,22 +84,34 @@ class ExerciseClassifier:
             X, y_exercise, y_correctness, test_size=0.2, random_state=42
         )
 
-        self.model.fit(X_train, y_exercise_train)
-        exercise_accuracy = accuracy_score(y_exercise_test, self.model.predict(X_test))
-        print(f"Точность классификации упражнений: {exercise_accuracy:.2f}")
+        # Преобразуем метки упражнений
+        y_exercise_train_encoded = self.label_encoder.transform(y_exercise_train)
+        y_exercise_test_encoded = self.label_encoder.transform(y_exercise_test)
 
+        # Обучаем модели
+        self.model.fit(X_train, y_exercise_train_encoded)
         self.correctness_model.fit(X_train, y_correctness_train)
+
+        # Оцениваем точность
+        exercise_accuracy = accuracy_score(y_exercise_test_encoded, self.model.predict(X_test))
         correctness_accuracy = accuracy_score(y_correctness_test, self.correctness_model.predict(X_test))
+        
+        print(f"Точность классификации упражнений: {exercise_accuracy:.2f}")
         print(f"Точность классификации правильности: {correctness_accuracy:.2f}")
 
-        # Сохраняем обе модели
-        joblib.dump((self.model, self.correctness_model), self.model_path)
+        # Сохраняем модели и энкодер
+        joblib.dump((self.model, self.correctness_model, self.label_encoder), self.model_path)
         print(f"Модель сохранена в {self.model_path}")
 
     def predict(self, X):
-        exercise_preds = self.model.predict(X)
-        correctness_preds = self.correctness_model.predict(X)
-        return list(zip(exercise_preds, correctness_preds))
+        try:
+            exercise_preds_encoded = self.model.predict(X)
+            correctness_preds = self.correctness_model.predict(X)
+            exercise_preds = self.label_encoder.inverse_transform(exercise_preds_encoded)
+            return list(zip(exercise_preds, correctness_preds))
+        except Exception as e:
+            print(f"Ошибка при предсказании: {e}")
+            return [('unknown', False)] * len(X)
 
 def train_exercise_classifier(csv_path, config_path=None):
     classifier = ExerciseClassifier(config_path)
@@ -91,9 +120,6 @@ def train_exercise_classifier(csv_path, config_path=None):
 
 def infer_exercise(csv_path, config_path=None):
     classifier = ExerciseClassifier(config_path)
-    # Обучаем модель, если она не была загружена
-    if not os.path.exists(classifier.model_path):
-        classifier.train(csv_path)
     X, _, _ = classifier.prepare_data(csv_path)
     if len(X) == 0:
         return [{'frame_id': i, 'exercise_type': 'unknown', 'correctness': 'unknown'} for i in range(10)]

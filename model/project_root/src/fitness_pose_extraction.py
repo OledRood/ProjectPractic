@@ -20,10 +20,7 @@ class PoseResult:
     frame_id: str
 
 class FitnessPoseExtractor:
-    def __init__(self, yolo_model_path='models/yolov8n-pose.pt', config_path=None):
-        # Используем config_path, если передан, иначе дефолтный путь внутри project_root
-        if config_path is None:
-            config_path = Path(__file__).parent.parent / 'config/config.yaml'
+    def __init__(self, yolo_model_path='models/yolov8n-pose.pt', config_path='config/config.yaml'):
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
         self.yolo = YOLO(yolo_model_path)
