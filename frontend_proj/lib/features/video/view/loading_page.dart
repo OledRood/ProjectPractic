@@ -1,3 +1,4 @@
+import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 
 class LoadingPage extends StatelessWidget {
@@ -5,6 +6,9 @@ class LoadingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: Text('Loading Page')));
+    return Scaffold(
+      appBar: AppBar(title: Text('Loading Page')),
+      body: Center(child: CircularProgressIndicator()),
+    );
   }
 }
