@@ -5,7 +5,8 @@ import 'package:frontend_proj/features/video/domain/video_viewmodel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
-import 'dart:html' as html show VideoElement, Url, Blob;
+import 'dart:html' as html;
+import 'package:flutter_dropzone/flutter_dropzone.dart';
 
 class GetVideoPage extends ConsumerWidget {
   const GetVideoPage({super.key});
@@ -119,10 +120,17 @@ class GetVideoPage extends ConsumerWidget {
   }
 }
 
-class _VideoPickerWidget extends ConsumerWidget {
+class _VideoPickerWidget extends ConsumerStatefulWidget {
   const _VideoPickerWidget();
 
-  Future<void> _pickVideo(WidgetRef ref) async {
+  @override
+  ConsumerState<_VideoPickerWidget> createState() => _VideoPickerWidgetState();
+}
+
+class _VideoPickerWidgetState extends ConsumerState<_VideoPickerWidget> {
+  bool _isDragging = false;
+
+  Future<void> _pickVideo() async {
     try {
       // Выбираем видео файл
       FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -142,7 +150,7 @@ class _VideoPickerWidget extends ConsumerWidget {
 
           // Получаем длительность видео для web
           if (file.bytes != null) {
-            _getVideoDuration(file.bytes!, ref);
+            _getVideoDuration(file.bytes!);
           }
         } else {
           videoPath = file.path;
@@ -160,7 +168,7 @@ class _VideoPickerWidget extends ConsumerWidget {
     }
   }
 
-  Future<void> _getVideoDuration(List<int> bytes, WidgetRef ref) async {
+  Future<void> _getVideoDuration(List<int> bytes) async {
     if (!kIsWeb) return;
 
     try {
@@ -219,7 +227,7 @@ class _VideoPickerWidget extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final state = ref.watch(VideoDi.videoViewmodelProvider);
     final hasVideo = state.hasVideo;
     final errorMessage = state.errorMessage;
@@ -230,82 +238,188 @@ class _VideoPickerWidget extends ConsumerWidget {
       height: 300,
       width: 450,
       decoration: BoxDecoration(
-        color: hasVideo
+        color: _isDragging
+            ? colorScheme.primaryContainer.withOpacity(0.5)
+            : hasVideo
             ? colorScheme.primaryContainer
             : colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: hasVideo
+          color: _isDragging
+              ? colorScheme.primary
+              : hasVideo
               ? colorScheme.primary
               : errorMessage == null
               ? colorScheme.outline
               : colorScheme.error,
-          width: 2,
+          width: _isDragging ? 3 : 2,
         ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _pickVideo(ref),
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  hasVideo
-                      ? Icons.video_file_rounded
-                      : Icons.video_library_rounded,
-                  size: 64,
-                  color: hasVideo
-                      ? colorScheme.primary
-                      : colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  hasVideo ? 'Видео выбрано' : 'Нажмите для выбора видео',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: hasVideo
-                        ? colorScheme.onPrimaryContainer
-                        : errorMessage == null
-                        ? colorScheme.onSurfaceVariant
-                        : colorScheme.error,
-                    fontWeight: hasVideo ? FontWeight.w600 : FontWeight.w500,
-                  ),
-                ),
-                if (hasVideo) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    state.videoFromUserPath ?? '',
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onPrimaryContainer.withOpacity(0.8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: kIsWeb
+            ? Stack(
+                children: [
+                  // Dropzone на весь контейнер
+                  Positioned.fill(
+                    child: DropzoneView(
+                      onDrop: _handleDrop,
+                      onHover: () => setState(() => _isDragging = true),
+                      onLeave: () => setState(() => _isDragging = false),
                     ),
                   ),
-
-                  const SizedBox(height: 16),
-                  FilledButton.tonalIcon(
-                    onPressed: () => _pickVideo(ref),
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
-                    label: const Text('Выбрать другое'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                  // Контент поверх dropzone
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: false,
+                      child: _buildContent(
+                        context,
+                        theme,
+                        colorScheme,
+                        hasVideo,
                       ),
                     ),
                   ),
                 ],
+              )
+            : _buildContent(context, theme, colorScheme, hasVideo),
+      ),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    bool hasVideo,
+  ) {
+    final state = ref.watch(VideoDi.videoViewmodelProvider);
+    final errorMessage = state.errorMessage;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _pickVideo(),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                _isDragging
+                    ? Icons.cloud_upload_rounded
+                    : hasVideo
+                    ? Icons.video_file_rounded
+                    : Icons.video_library_rounded,
+                size: 64,
+                color: _isDragging
+                    ? colorScheme.primary
+                    : hasVideo
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _isDragging
+                    ? 'Отпустите файл для загрузки'
+                    : hasVideo
+                    ? 'Видео выбрано'
+                    : 'Нажмите для выбора видео\nили перетащите файл сюда',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: _isDragging
+                      ? colorScheme.primary
+                      : hasVideo
+                      ? colorScheme.onPrimaryContainer
+                      : errorMessage == null
+                      ? colorScheme.onSurfaceVariant
+                      : colorScheme.error,
+                  fontWeight: hasVideo || _isDragging
+                      ? FontWeight.w600
+                      : FontWeight.w500,
+                ),
+              ),
+              if (hasVideo) ...[
+                const SizedBox(height: 8),
+                Text(
+                  state.videoFromUserPath ?? '',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onPrimaryContainer.withOpacity(0.8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.tonalIcon(
+                  onPressed: () => _pickVideo(),
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Выбрать другое'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
               ],
-            ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _handleDrop(dynamic event) async {
+    if (!kIsWeb) return;
+
+    setState(() => _isDragging = false);
+
+    try {
+      // Проверяем, что event это html.File
+      if (event is! html.File) {
+        ref
+            .read(VideoDi.videoViewmodelProvider.notifier)
+            .error("Неверный формат файла");
+        return;
+      }
+
+      final file = event;
+
+      // Проверяем MIME-тип
+      if (!file.type.startsWith('video/')) {
+        ref
+            .read(VideoDi.videoViewmodelProvider.notifier)
+            .error("Пожалуйста, выберите видео файл");
+        return;
+      }
+
+      // Читаем файл как bytes
+      final reader = html.FileReader();
+      reader.readAsArrayBuffer(file);
+
+      await reader.onLoadEnd.first;
+
+      if (reader.result != null) {
+        final bytes = reader.result as List<int>;
+
+        // Сохраняем видео
+        ref
+            .read(VideoDi.videoViewmodelProvider.notifier)
+            .onUploadVideoTap(file.name);
+
+        // Получаем длительность
+        _getVideoDuration(bytes);
+      }
+    } catch (e) {
+      ref
+          .read(VideoDi.videoViewmodelProvider.notifier)
+          .error("Ошибка при загрузке видео: $e");
+    }
   }
 }
 
