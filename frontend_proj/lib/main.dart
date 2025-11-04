@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend_proj/core/message/message_di.dart';
 import 'package:frontend_proj/core/navigation/app_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,13 +13,16 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final scaffoldManager = ref.watch(MessageDi.scaffoldMessengerManager);
+
     return MaterialApp.router(
+      scaffoldMessengerKey: scaffoldManager.scaffoldMessengerKey,
+
       title: 'Flutter Demo',
       routerConfig: router,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
+      darkTheme: ThemeData.dark(),
+      themeMode: ThemeMode.light,
+      theme: ThemeData.light(),
     );
   }
 }

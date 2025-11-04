@@ -1,11 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend_proj/core/message/message_di.dart';
+import 'package:frontend_proj/core/message/scaffold_messenger_manager.dart';
 import 'package:frontend_proj/core/navigation/app_navigation.dart';
 import 'package:frontend_proj/features/video/models/video_state.dart';
+import 'package:flutter/foundation.dart';
 
 class VideoViewmodel extends Notifier<VideoState> {
-  VideoViewmodel() {}
+  VideoViewmodel();
   AppNavigation get _navigation => ref.read(appNavigationProvider);
-
+  ScaffoldMessengerManager get _scaffoldMessenger =>
+      ref.read(MessageDi.scaffoldMessengerManager);
   @override
   VideoState build() {
     return VideoState();
@@ -25,8 +29,24 @@ class VideoViewmodel extends Notifier<VideoState> {
     }
   }
 
+  void error(String error) {
+    _scaffoldMessenger.showErrorSnackBar(error);
+  }
+
   void onUploadVideoTap(String? videoPath) {
-    state = state.copyWith(videoFromUserPath: videoPath);
+    state = state.copyWith(videoFromUserPath: videoPath, errorMessage: null);
+  }
+
+  void setVideoDuration(Duration? duration) {
+    state = state.copyWith(videoDuration: duration);
+  }
+
+  void showProcessingInfo() {
+    state = state.copyWith(showProcessingInfoDialog: true);
+  }
+
+  void hideProcessingInfo() {
+    state = state.copyWith(showProcessingInfoDialog: false);
   }
 
   void onSendButtonTap() {
@@ -41,6 +61,7 @@ class VideoViewmodel extends Notifier<VideoState> {
         errorMessage: "Пожалуйста, загрузите видео",
         isLoading: false,
       );
+      _scaffoldMessenger.showErrorSnackBar(state.errorMessage!);
       return;
     }
     state = state.copyWith(
@@ -54,35 +75,49 @@ class VideoViewmodel extends Notifier<VideoState> {
 
   Future<void> _sendVideoToServer() async {
     try {
-      await Future.delayed(const Duration(seconds: 2));
+      debugPrint('Sending video to server...');
+      await Future.delayed(const Duration(seconds: 1));
 
       // Simulate a successful response from the server with a video path
-      const serverVideoPath = "server/path/to/processed_video.mp4";
+      // Используем тестовое видео из интернета
+      const serverVideoPath =
+          "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
+      debugPrint('Video processed successfully, navigating to result page');
       state = state.copyWith(
         videoFromServerPath: serverVideoPath,
         status: VideoStatus.result,
         isLoading: false,
       );
+      debugPrint(
+        'State updated: videoFromServerPath=${state.videoFromServerPath}',
+      );
+
+      // Отложенная навигация после обновления состояния
+      await Future.delayed(Duration.zero);
       _navigateByStatus(VideoStatus.result);
     } catch (e) {
+      debugPrint('Error sending video: $e');
       state = state.copyWith(
         errorMessage: "Ошибка при отправке видео на сервер",
         status: VideoStatus.getVideo,
         isLoading: false,
       );
+
       _navigateByStatus(VideoStatus.getVideo);
     }
   }
 
   void onRestartVideoSendButtonTap() {
+    _navigateByStatus(VideoStatus.getVideo);
+
     state = state.copyWith(
       status: VideoStatus.getVideo,
       errorMessage: null,
       videoFromUserPath: null,
       videoFromServerPath: null,
+      videoDuration: null,
       isLoading: false,
     );
-    _navigateByStatus(VideoStatus.getVideo);
   }
 }

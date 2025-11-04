@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$VideoState {
 
- String? get videoFromUserPath; String? get videoFromServerPath; String? get errorMessage; bool get isLoading; VideoStatus get status;
+ String? get videoFromUserPath; String? get videoFromServerPath; String? get errorMessage; bool get isLoading; VideoStatus get status; Duration? get videoDuration; bool get showProcessingInfoDialog;
 /// Create a copy of VideoState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $VideoStateCopyWith<VideoState> get copyWith => _$VideoStateCopyWithImpl<VideoSt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VideoState&&(identical(other.videoFromUserPath, videoFromUserPath) || other.videoFromUserPath == videoFromUserPath)&&(identical(other.videoFromServerPath, videoFromServerPath) || other.videoFromServerPath == videoFromServerPath)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.status, status) || other.status == status));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VideoState&&(identical(other.videoFromUserPath, videoFromUserPath) || other.videoFromUserPath == videoFromUserPath)&&(identical(other.videoFromServerPath, videoFromServerPath) || other.videoFromServerPath == videoFromServerPath)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.status, status) || other.status == status)&&(identical(other.videoDuration, videoDuration) || other.videoDuration == videoDuration)&&(identical(other.showProcessingInfoDialog, showProcessingInfoDialog) || other.showProcessingInfoDialog == showProcessingInfoDialog));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,videoFromUserPath,videoFromServerPath,errorMessage,isLoading,status);
+int get hashCode => Object.hash(runtimeType,videoFromUserPath,videoFromServerPath,errorMessage,isLoading,status,videoDuration,showProcessingInfoDialog);
 
 @override
 String toString() {
-  return 'VideoState(videoFromUserPath: $videoFromUserPath, videoFromServerPath: $videoFromServerPath, errorMessage: $errorMessage, isLoading: $isLoading, status: $status)';
+  return 'VideoState(videoFromUserPath: $videoFromUserPath, videoFromServerPath: $videoFromServerPath, errorMessage: $errorMessage, isLoading: $isLoading, status: $status, videoDuration: $videoDuration, showProcessingInfoDialog: $showProcessingInfoDialog)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $VideoStateCopyWith<$Res>  {
   factory $VideoStateCopyWith(VideoState value, $Res Function(VideoState) _then) = _$VideoStateCopyWithImpl;
 @useResult
 $Res call({
- String? videoFromUserPath, String? videoFromServerPath, String? errorMessage, bool isLoading, VideoStatus status
+ String? videoFromUserPath, String? videoFromServerPath, String? errorMessage, bool isLoading, VideoStatus status, Duration? videoDuration, bool showProcessingInfoDialog
 });
 
 
@@ -62,14 +62,16 @@ class _$VideoStateCopyWithImpl<$Res>
 
 /// Create a copy of VideoState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? videoFromUserPath = freezed,Object? videoFromServerPath = freezed,Object? errorMessage = freezed,Object? isLoading = null,Object? status = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? videoFromUserPath = freezed,Object? videoFromServerPath = freezed,Object? errorMessage = freezed,Object? isLoading = null,Object? status = null,Object? videoDuration = freezed,Object? showProcessingInfoDialog = null,}) {
   return _then(_self.copyWith(
 videoFromUserPath: freezed == videoFromUserPath ? _self.videoFromUserPath : videoFromUserPath // ignore: cast_nullable_to_non_nullable
 as String?,videoFromServerPath: freezed == videoFromServerPath ? _self.videoFromServerPath : videoFromServerPath // ignore: cast_nullable_to_non_nullable
 as String?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
 as bool,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
-as VideoStatus,
+as VideoStatus,videoDuration: freezed == videoDuration ? _self.videoDuration : videoDuration // ignore: cast_nullable_to_non_nullable
+as Duration?,showProcessingInfoDialog: null == showProcessingInfoDialog ? _self.showProcessingInfoDialog : showProcessingInfoDialog // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -151,10 +153,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? videoFromUserPath,  String? videoFromServerPath,  String? errorMessage,  bool isLoading,  VideoStatus status)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? videoFromUserPath,  String? videoFromServerPath,  String? errorMessage,  bool isLoading,  VideoStatus status,  Duration? videoDuration,  bool showProcessingInfoDialog)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _VideoState() when $default != null:
-return $default(_that.videoFromUserPath,_that.videoFromServerPath,_that.errorMessage,_that.isLoading,_that.status);case _:
+return $default(_that.videoFromUserPath,_that.videoFromServerPath,_that.errorMessage,_that.isLoading,_that.status,_that.videoDuration,_that.showProcessingInfoDialog);case _:
   return orElse();
 
 }
@@ -172,10 +174,10 @@ return $default(_that.videoFromUserPath,_that.videoFromServerPath,_that.errorMes
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? videoFromUserPath,  String? videoFromServerPath,  String? errorMessage,  bool isLoading,  VideoStatus status)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? videoFromUserPath,  String? videoFromServerPath,  String? errorMessage,  bool isLoading,  VideoStatus status,  Duration? videoDuration,  bool showProcessingInfoDialog)  $default,) {final _that = this;
 switch (_that) {
 case _VideoState():
-return $default(_that.videoFromUserPath,_that.videoFromServerPath,_that.errorMessage,_that.isLoading,_that.status);}
+return $default(_that.videoFromUserPath,_that.videoFromServerPath,_that.errorMessage,_that.isLoading,_that.status,_that.videoDuration,_that.showProcessingInfoDialog);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -189,10 +191,10 @@ return $default(_that.videoFromUserPath,_that.videoFromServerPath,_that.errorMes
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? videoFromUserPath,  String? videoFromServerPath,  String? errorMessage,  bool isLoading,  VideoStatus status)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? videoFromUserPath,  String? videoFromServerPath,  String? errorMessage,  bool isLoading,  VideoStatus status,  Duration? videoDuration,  bool showProcessingInfoDialog)?  $default,) {final _that = this;
 switch (_that) {
 case _VideoState() when $default != null:
-return $default(_that.videoFromUserPath,_that.videoFromServerPath,_that.errorMessage,_that.isLoading,_that.status);case _:
+return $default(_that.videoFromUserPath,_that.videoFromServerPath,_that.errorMessage,_that.isLoading,_that.status,_that.videoDuration,_that.showProcessingInfoDialog);case _:
   return null;
 
 }
@@ -203,8 +205,8 @@ return $default(_that.videoFromUserPath,_that.videoFromServerPath,_that.errorMes
 /// @nodoc
 
 
-class _VideoState implements VideoState {
-   _VideoState({this.videoFromUserPath, this.videoFromServerPath, this.errorMessage, this.isLoading = false, this.status = VideoStatus.getVideo});
+class _VideoState extends VideoState {
+   _VideoState({this.videoFromUserPath, this.videoFromServerPath, this.errorMessage, this.isLoading = false, this.status = VideoStatus.getVideo, this.videoDuration, this.showProcessingInfoDialog = false}): super._();
   
 
 @override final  String? videoFromUserPath;
@@ -212,6 +214,8 @@ class _VideoState implements VideoState {
 @override final  String? errorMessage;
 @override@JsonKey() final  bool isLoading;
 @override@JsonKey() final  VideoStatus status;
+@override final  Duration? videoDuration;
+@override@JsonKey() final  bool showProcessingInfoDialog;
 
 /// Create a copy of VideoState
 /// with the given fields replaced by the non-null parameter values.
@@ -223,16 +227,16 @@ _$VideoStateCopyWith<_VideoState> get copyWith => __$VideoStateCopyWithImpl<_Vid
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _VideoState&&(identical(other.videoFromUserPath, videoFromUserPath) || other.videoFromUserPath == videoFromUserPath)&&(identical(other.videoFromServerPath, videoFromServerPath) || other.videoFromServerPath == videoFromServerPath)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.status, status) || other.status == status));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _VideoState&&(identical(other.videoFromUserPath, videoFromUserPath) || other.videoFromUserPath == videoFromUserPath)&&(identical(other.videoFromServerPath, videoFromServerPath) || other.videoFromServerPath == videoFromServerPath)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.status, status) || other.status == status)&&(identical(other.videoDuration, videoDuration) || other.videoDuration == videoDuration)&&(identical(other.showProcessingInfoDialog, showProcessingInfoDialog) || other.showProcessingInfoDialog == showProcessingInfoDialog));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,videoFromUserPath,videoFromServerPath,errorMessage,isLoading,status);
+int get hashCode => Object.hash(runtimeType,videoFromUserPath,videoFromServerPath,errorMessage,isLoading,status,videoDuration,showProcessingInfoDialog);
 
 @override
 String toString() {
-  return 'VideoState(videoFromUserPath: $videoFromUserPath, videoFromServerPath: $videoFromServerPath, errorMessage: $errorMessage, isLoading: $isLoading, status: $status)';
+  return 'VideoState(videoFromUserPath: $videoFromUserPath, videoFromServerPath: $videoFromServerPath, errorMessage: $errorMessage, isLoading: $isLoading, status: $status, videoDuration: $videoDuration, showProcessingInfoDialog: $showProcessingInfoDialog)';
 }
 
 
@@ -243,7 +247,7 @@ abstract mixin class _$VideoStateCopyWith<$Res> implements $VideoStateCopyWith<$
   factory _$VideoStateCopyWith(_VideoState value, $Res Function(_VideoState) _then) = __$VideoStateCopyWithImpl;
 @override @useResult
 $Res call({
- String? videoFromUserPath, String? videoFromServerPath, String? errorMessage, bool isLoading, VideoStatus status
+ String? videoFromUserPath, String? videoFromServerPath, String? errorMessage, bool isLoading, VideoStatus status, Duration? videoDuration, bool showProcessingInfoDialog
 });
 
 
@@ -260,14 +264,16 @@ class __$VideoStateCopyWithImpl<$Res>
 
 /// Create a copy of VideoState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? videoFromUserPath = freezed,Object? videoFromServerPath = freezed,Object? errorMessage = freezed,Object? isLoading = null,Object? status = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? videoFromUserPath = freezed,Object? videoFromServerPath = freezed,Object? errorMessage = freezed,Object? isLoading = null,Object? status = null,Object? videoDuration = freezed,Object? showProcessingInfoDialog = null,}) {
   return _then(_VideoState(
 videoFromUserPath: freezed == videoFromUserPath ? _self.videoFromUserPath : videoFromUserPath // ignore: cast_nullable_to_non_nullable
 as String?,videoFromServerPath: freezed == videoFromServerPath ? _self.videoFromServerPath : videoFromServerPath // ignore: cast_nullable_to_non_nullable
 as String?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
 as bool,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
-as VideoStatus,
+as VideoStatus,videoDuration: freezed == videoDuration ? _self.videoDuration : videoDuration // ignore: cast_nullable_to_non_nullable
+as Duration?,showProcessingInfoDialog: null == showProcessingInfoDialog ? _self.showProcessingInfoDialog : showProcessingInfoDialog // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
