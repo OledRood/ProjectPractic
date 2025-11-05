@@ -1,0 +1,31 @@
+model:
+  landmarks: ['LEFT_SHOULDER', 'RIGHT_SHOULDER', 'LEFT_HIP', 'RIGHT_HIP', 'LEFT_ELBOW', 'RIGHT_ELBOW', 'LEFT_WRIST', 'RIGHT_WRIST', 'LEFT_KNEE', 'RIGHT_KNEE', 'LEFT_ANKLE', 'RIGHT_ANKLE']
+  exercise_types: ['pushup', 'squat', 'long_jump', 'unknown']
+  max_seq_len: 100
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.2
+  correctness_thresholds:
+    min_visibility: 0.5  # Снижаем требования к видимости
+    squat_knee_angle_min: 120  # Снижаем требование к углу колена
+    # Пороги корректности для приседания (более лояльные)
+    squat_knee_correct_threshold: 100  # Более мягкое требование к сгибанию колен
+    squat_elbow_correct_threshold: 160  # Более свободное положение рук
+    pushup_elbow_angle_min: 80  # Немного снижаем требование к сгибанию локтей
+    pushup_knee_angle_min: 110  # Минимальный угол колена для отжиманий
+    long_jump_takeoff_angle_min: 15  # Снижаем минимальный угол отталкивания
+    long_jump_takeoff_angle_max: 150  # Увеличиваем максимальный угол
+    long_jump_ankle_separation_max: 2.5  # Увеличиваем допустимое расстояние между стопами
+  heuristic_thresholds:
+    horizontal_delta_max: 0.07  # Уменьшаем порог горизонтального движения
+    vertical_delta_max: 0.07    # Уменьшаем порог вертикального движения
+    knee_angle_min: 80         # Снижаем минимальный угол колена
+    elbow_angle_min: 80        # Снижаем минимальный угол локтя
+    bilstm_confidence_min: 0.6  # Снижаем требуемую уверенность модели
+    # Pushup-specific tuning
+    pushup_torso_angle_max: 60    # Увеличиваем допустимый угол корпуса при отжиманиях
+    pushup_vertical_multiplier: 2.5  # Увеличиваем допуск вертикального движения в отжиманиях
+mediapipe:
+  model_complexity: 1
+  min_detection_confidence: 0.5
+  min_tracking_confidence: 0.5
