@@ -136,7 +136,7 @@ def visualize(
                          for kp in data[img_path]}
         meta_info = meta[img_path]
         frame_id = os.path.basename(img_path).split('_')[-1].split('.')[0]
-        pred_info = pred_dict.get(int(frame_id), {'exercise_type': 'unknown', 'correctness': 'unknown'})
+        pred_info = pred_dict.get(int(frame_id), {'exercise_type': '', 'correctness': ''})
         keypoints_scaled = denormalize_keypoints(
             keypoints_norm, meta_info['center_x'], meta_info['center_y'], meta_info['unit_length'],
             image.shape, meta_info['bbox']

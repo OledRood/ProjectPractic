@@ -1,7 +1,7 @@
 import cv2
 import os
 import argparse
-# python video_to_frames.py --video ../data/dataset/video/video1.mp4 --rotate 90
+# python video_to_frames.py --video ../data/dataset/video/video1.mp4 --rotate 90/180/270
 
 def video_to_frames(video_path, output_folder, video_name, rotate=None):
     print(f"[INFO] Загружаю видео: {video_path}")
@@ -48,6 +48,6 @@ if __name__ == "__main__":
 
     video_path = args.video
     video_name = os.path.splitext(os.path.basename(video_path))[0]
-    output_folder = os.path.join("../data/visualizations/video", video_name)
+    output_folder = os.path.join("/Users/nikko/Downloads/ProjectPractic-model-2/model/project_root/data/visualizations/video/", video_name)
 
     video_to_frames(video_path, output_folder, video_name, rotate=args.rotate)

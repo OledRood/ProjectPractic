@@ -69,7 +69,9 @@ class FitnessPoseExtractor:
 
         diag1 = np.hypot(ls.x - rb.x, ls.y - rb.y)
         diag2 = np.hypot(rs.x - lb.x, rs.y - lb.y)
-        return max((diag1 + diag2) / 2, 0.01)
+        unit_length = min(max((diag1 + diag2) / 2, 0.01), 1.0)  # Ограничение сверху
+        print(f"DEBUG: unit_length={unit_length:.3f}")
+        return unit_length
 
     def _normalize_keypoints(self, landmarks, center_x, center_y, unit_length):
         if center_x is None or center_y is None:
@@ -97,6 +99,20 @@ class FitnessPoseExtractor:
     def _extract_pose_data(self, detection, image, image_path):
         pose_data = []
         boxes = detection.boxes.xyxy.cpu().numpy()
+        confidences = detection.boxes.conf.cpu().numpy()
+
+        if len(boxes) > 1:
+            # Выбираем человека с наибольшим bbox и высоким confidence
+            areas = [(box[2] - box[0]) * (box[3] - box[1]) for box in boxes]
+            valid_boxes = [(box, conf) for box, conf in zip(boxes, confidences) if conf > 0.7]
+            if valid_boxes:
+                areas = [(box[2] - box[0]) * (box[3] - box[1]) for box, _ in valid_boxes]
+                max_idx = np.argmax(areas)
+                boxes = [valid_boxes[max_idx][0]]
+                print(f"DEBUG: Detected {len(valid_boxes)} persons, selected largest bbox with area {areas[max_idx]:.1f}")
+            else:
+                print("DEBUG: No valid boxes with confidence > 0.7")
+                return pose_data
 
         for box in boxes:
             x1, y1, x2, y2 = map(int, box)
