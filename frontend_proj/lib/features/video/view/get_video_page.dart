@@ -328,7 +328,7 @@ class _VideoPickerWidgetState extends ConsumerState<_VideoPickerWidget> {
                     ? 'Отпустите файл для загрузки'
                     : hasVideo
                     ? 'Видео выбрано'
-                    : 'Нажмите для выбора видео\nили перетащите файл сюда',
+                    : 'Нажмите для выбора видео',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: _isDragging

@@ -1,4 +1,7 @@
 enum AppRoutes {
+  signUpPage('/signUpPage'),
+  signInPage('/signInPage'),
+
   getVideoPage('/getVidoPage'),
   loadingPage('/loadingPage'),
   resultPage('/resultPage');

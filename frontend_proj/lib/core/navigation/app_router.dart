@@ -1,5 +1,6 @@
 import 'package:frontend_proj/core/navigation/app_routes.dart';
 import 'package:frontend_proj/core/navigation/router_notifier.dart';
+import 'package:frontend_proj/features/auth/sign_up/view/sign_up_view.dart';
 import 'package:frontend_proj/features/video/view/get_video_page.dart';
 import 'package:frontend_proj/features/video/view/loading_page.dart';
 import 'package:frontend_proj/features/video/view/result_page.dart';
@@ -10,8 +11,15 @@ final routerProvider = Provider<GoRouter>((ref) {
   final notifier = ref.watch(routerNotifierProvider);
   return GoRouter(
     refreshListenable: notifier,
-    initialLocation: AppRoutes.getVideoPage.path,
+    initialLocation: AppRoutes.signUpPage.path,
     routes: [
+      GoRoute(
+        path: AppRoutes.signUpPage.path,
+        name: AppRoutes.signUpPage.name,
+        builder: (context, state) {
+          return SignUpPage();
+        },
+      ),
       GoRoute(
         path: AppRoutes.getVideoPage.path,
         name: AppRoutes.getVideoPage.name,
