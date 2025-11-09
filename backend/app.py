@@ -20,6 +20,7 @@ import time
 import logging
 import aiofiles
 from enum import Enum
+from model_integration import get_model_processor, ModelProcessor
 
 # Настройка логирования
 logging.basicConfig(
@@ -45,8 +46,9 @@ app.add_middleware(
 )
 
 # Конфигурация
-UPLOAD_FOLDER = Path('./uploads')
-RESULTS_FOLDER = Path('./results')
+CURRENT_DIR = Path(__file__).parent
+UPLOAD_FOLDER = CURRENT_DIR / 'storage' / 'uploads'
+RESULTS_FOLDER = CURRENT_DIR / 'storage' / 'results'
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv'}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
@@ -91,6 +93,8 @@ class TaskResponse(BaseModel):
     updated_at: float
     result: Optional[VideoResult] = None
     error: Optional[str] = None
+    progress: Optional[float] = None  # Прогресс обработки от 0 до 1
+    stage: Optional[str] = None  # Текущий этап обработки
 
 
 class UploadResponse(BaseModel):
@@ -113,14 +117,12 @@ def is_video_file(filename: str) -> bool:
 
 
 async def process_video_task(task_id: str, video_path: str, rotation: Optional[int] = None):
-    """
-    Фоновая задача для обработки видео.
+    '''Background task for video processing.
     
-    Args:
-        task_id: ID задачи
-        video_path: путь к загруженному видео
-        rotation: угол поворота (90, 180, 270 или None)
-    """
+    :param task_id: Task identifier
+    :param video_path: Path to uploaded video
+    :param rotation: Rotation angle (90, 180, 270 or None)
+    '''
     global is_processing
     
     try:
@@ -129,56 +131,62 @@ async def process_video_task(task_id: str, video_path: str, rotation: Optional[i
         tasks[task_id]['updated_at'] = time.time()
         logger.info(f"Начало обработки задачи {task_id}")
         
-        # 🔧 ЗАГЛУШКА: Имитация работы модели
-        # В реальности здесь будет вызов функций из model/project_root/src/
-        logger.info(f"[MOCK] Обработка видео: {video_path}")
+        # Получаем процессор модели
+        model_processor = get_model_processor()
         
-        # Симулируем длительную обработку (5-10 секунд)
-        import random
-        processing_time = random.uniform(5, 10)
-        await asyncio.sleep(processing_time)
+        # Подготавливаем пути для входного и выходного видео
+        input_path = Path(video_path)
+        output_filename = f'result_{task_id}.mp4'
+        output_path = RESULTS_FOLDER / output_filename
         
-        # 🔧 ЗАГЛУШКА: Генерируем mock результаты
-        mock_results = {
-            'exercise_type': random.choice(['push_up', 'squat', 'long_jump']),
-            'correctness': random.choice(['correct', 'incorrect', 'partial']),
-            'confidence': round(random.uniform(0.7, 0.99), 2),
-            'frame_count': random.randint(100, 300),
-            'output_video': f'result_{task_id}.mp4'
-        }
+        # Обрабатываем видео с помощью модели
+        logger.info(f"Начало обработки видео моделью: {input_path}")
         
-        # 🔧 ЗАГЛУШКА: Копируем исходное видео как результат (для демонстрации)
-        # В реальности модель создаст новое обработанное видео
-        import shutil
-        result_video_path = RESULTS_FOLDER / mock_results['output_video']
-        shutil.copy(video_path, result_video_path)
+        # Обновляем прогресс: начало обработки
+        tasks[task_id].update({
+            'progress': 0.1,
+            'stage': 'Подготовка к обработке'
+        })
+
+        def progress_callback(stage: str, progress: float):
+            """Callback для обновления прогресса обработки"""
+            tasks[task_id].update({
+                'progress': 0.1 + progress * 0.8,  # Оставляем 10% на начало и конец
+                'stage': stage,
+                'updated_at': time.time()
+            })
+            logger.info(f"Прогресс обработки {task_id}: {stage} - {progress:.1%}")
+
+        results = await model_processor.process_video(
+            input_path,
+            output_path,
+            progress_callback=progress_callback
+        )
         
-        logger.info(f"[MOCK] Результаты: {mock_results}")
+        # Проверяем, что файл действительно создан
+        if not output_path.is_file():
+            raise RuntimeError(f"Результирующий файл не был создан по пути: {output_path}")
         
-        # 📝 В продакшене раскомментировать:
-        # import shutil
-        # from model.project_root.src.backend_interface import (
-        #     process_video_with_rotation, 
-        #     analyze_video_frames
-        # )
-        # 
-        # # Обрабатываем видео и получаем кадры
-        # frames_dir = process_video_with_rotation(video_path, rotation)
-        # 
-        # # Анализируем кадры (модель всегда возвращает .mp4)
-        # results = analyze_video_frames(frames_dir, fps=30)
-        # 
-        # # Копируем результирующее видео в папку results
-        # output_video_src = Path(results['output_video'])
-        # output_video_dst = RESULTS_FOLDER / f'result_{task_id}.mp4'
-        # shutil.copy(output_video_src, output_video_dst)
-        # 
-        # results['output_video'] = output_video_dst.name
+        # Проверяем размер файла
+        file_size = output_path.stat().st_size
+        if file_size == 0:
+            raise RuntimeError(f"Результирующий файл пуст: {output_path}")
+            
+        logger.info(f"Результирующий файл создан успешно: {output_path} (размер: {file_size} байт)")
+        
+        # Добавляем имя выходного файла к результатам
+        results['output_video'] = output_filename
+        
+        logger.info(f"Результаты обработки: {results}")
         
         # Обновляем задачу с результатами
-        tasks[task_id]['status'] = TaskStatus.COMPLETED.value
-        tasks[task_id]['result'] = mock_results
-        tasks[task_id]['updated_at'] = time.time()
+        tasks[task_id].update({
+            'status': TaskStatus.COMPLETED.value,
+            'result': results,
+            'updated_at': time.time(),
+            'progress': 1.0,
+            'stage': 'Завершено'
+        })
         logger.info(f"Задача {task_id} успешно завершена")
         
     except Exception as e:
@@ -215,20 +223,19 @@ async def upload_video(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     rotation: Optional[int] = Form(None)
-):
-    """
-    Загрузка видео для обработки.
+) -> UploadResponse:
+    '''Upload video for processing.
     
-    Args:
-        file: Видеофайл (любой формат: mp4, avi, mov, mkv, webm, etc.)
-        rotation: Угол поворота видео (90, 180 или 270 градусов)
+    :param background_tasks: FastAPI background tasks
+    :param file: Video file (formats: mp4, avi, mov, mkv, webm, etc.)
+    :param rotation: Optional rotation angle (90, 180 or 270 degrees)
+    :return: Task information
+    :raises HTTPException: On validation or upload error
+    '''
+    # Создаем директории, если они не существуют
+    UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+    RESULTS_FOLDER.mkdir(parents=True, exist_ok=True)
     
-    Returns:
-        UploadResponse: ID задачи и статус
-        
-    Raises:
-        HTTPException: При ошибке валидации или загрузки
-    """
     # Валидация файла
     if not file.filename:
         raise HTTPException(status_code=400, detail="Empty filename")
@@ -247,6 +254,10 @@ async def upload_video(
         )
     
     try:
+        # Проверяем размер файла
+        file_size = 0
+        chunk_size = 1024 * 1024  # 1MB chunks
+        
         # Генерируем уникальный ID задачи
         task_id = str(uuid.uuid4())
         
@@ -255,10 +266,18 @@ async def upload_video(
         safe_filename = f'{task_id}{file_ext}'
         video_path = UPLOAD_FOLDER / safe_filename
         
-        # Асинхронно сохраняем файл
+        # Асинхронно сохраняем файл по частям
         async with aiofiles.open(video_path, 'wb') as out_file:
-            content = await file.read()
-            await out_file.write(content)
+            while content := await file.read(chunk_size):
+                await out_file.write(content)
+                file_size += len(content)
+                if file_size > MAX_FILE_SIZE:
+                    await out_file.close()
+                    video_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size is {MAX_FILE_SIZE/(1024*1024)}MB"
+                    )
         
         file_size = video_path.stat().st_size
         logger.info(f"Видео загружено: {video_path} (размер: {file_size} байт)")
@@ -271,7 +290,9 @@ async def upload_video(
             'updated_at': time.time(),
             'video_path': str(video_path),
             'rotation': rotation,
-            'filename': file.filename
+            'filename': file.filename,
+            'progress': 0.0,
+            'stage': 'В очереди'
         }
         
         # Пытаемся захватить блокировку для обработки
@@ -297,19 +318,13 @@ async def upload_video(
 
 
 @app.get("/api/status/{task_id}", response_model=TaskResponse, tags=["Video"])
-async def get_status(task_id: str):
-    """
-    Получение статуса обработки видео.
+async def get_status(task_id: str) -> TaskResponse:
+    '''Get task processing status.
     
-    Args:
-        task_id: ID задачи, полученный при загрузке
-    
-    Returns:
-        TaskResponse: Информация о задаче и её статусе
-        
-    Raises:
-        HTTPException: Если задача не найдена
-    """
+    :param task_id: Task identifier
+    :return: Task status information
+    :raises HTTPException: If task not found
+    '''
     if task_id not in tasks:
         raise HTTPException(status_code=404, detail="Task not found")
     
@@ -320,7 +335,9 @@ async def get_status(task_id: str):
         'task_id': task['id'],
         'status': task['status'],
         'created_at': task['created_at'],
-        'updated_at': task['updated_at']
+        'updated_at': task['updated_at'],
+        'progress': task.get('progress', 0.0),
+        'stage': task.get('stage', 'Неизвестно')
     }
     
     # Добавляем результат если обработка завершена
@@ -335,19 +352,13 @@ async def get_status(task_id: str):
 
 
 @app.get("/api/result/{task_id}", response_class=FileResponse, tags=["Video"])
-async def get_result(task_id: str):
-    """
-    Скачивание обработанного видео.
+async def get_result(task_id: str) -> FileResponse:
+    '''Download processed video.
     
-    Args:
-        task_id: ID задачи
-    
-    Returns:
-        FileResponse: Видеофайл в формате MP4
-        
-    Raises:
-        HTTPException: Если задача не найдена, не завершена или файл отсутствует
-    """
+    :param task_id: Task identifier
+    :return: Processed video file in MP4 format
+    :raises HTTPException: If task not found or result not available
+    '''
     if task_id not in tasks:
         raise HTTPException(status_code=404, detail="Task not found")
     
@@ -379,13 +390,11 @@ async def get_result(task_id: str):
 
 
 @app.get("/api/tasks", tags=["Debug"])
-async def list_tasks():
-    """
-    Получение списка всех задач (для отладки).
+async def list_tasks() -> dict:
+    '''Get list of all tasks (debug endpoint).
     
-    Returns:
-        dict: Список всех задач с основной информацией
-    """
+    :return: List of all tasks and their statuses
+    '''
     task_list = []
     for task_id, task in tasks.items():
         task_info = {

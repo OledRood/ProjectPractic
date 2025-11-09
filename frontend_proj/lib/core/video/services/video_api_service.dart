@@ -33,8 +33,8 @@ class VideoApiService {
       _dio = Dio(
         BaseOptions(
           baseUrl: baseUrl ?? BASE_URL,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
+          connectTimeout: const Duration(minutes: 5),
+          receiveTimeout: const Duration(minutes: 5),
           // sendTimeout убран из BaseOptions, т.к. в Web это вызывает предупреждение для GET запросов
           // Для POST запросов с телом будем указывать sendTimeout явно
         ),
@@ -99,7 +99,9 @@ class VideoApiService {
         '/upload',
         data: formData,
         options: Options(
-          sendTimeout: const Duration(minutes: 5), // Только для загрузки файлов
+          sendTimeout: const Duration(
+            minutes: 10,
+          ), // Увеличенный таймаут для загрузки файлов
         ),
         onSendProgress: (sent, total) {
           if (onProgress != null && total > 0) {
@@ -163,7 +165,9 @@ class VideoApiService {
         '/upload',
         data: formData,
         options: Options(
-          sendTimeout: const Duration(minutes: 5), // Только для загрузки файлов
+          sendTimeout: const Duration(
+            minutes: 10,
+          ), // Увеличенный таймаут для загрузки файлов
         ),
         onSendProgress: (sent, total) {
           if (onProgress != null && total > 0) {
@@ -264,15 +268,16 @@ class VideoApiService {
   /// [taskId] - ID задачи
   /// [onStatusUpdate] - callback при каждом обновлении статуса
   /// [pollInterval] - интервал опроса (по умолчанию 2 секунды)
-  /// [maxAttempts] - максимальное количество попыток (по умолчанию 300 = 10 минут)
+  /// [timeout] - максимальное время ожидания (по умолчанию 30 минут)
+  /// [retryOnError] - продолжать попытки при ошибках сети
   Stream<VideoTask> pollStatus(
     String taskId, {
     Duration pollInterval = const Duration(seconds: 2),
-    int maxAttempts = 300,
+    Duration timeout = const Duration(minutes: 30),
+    bool retryOnError = true,
   }) async* {
-    int attempts = 0;
-
-    while (attempts < maxAttempts) {
+    final stopTime = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(stopTime)) {
       try {
         final task = await getStatus(taskId);
         yield task;
@@ -283,20 +288,28 @@ class VideoApiService {
           break;
         }
 
+        // Логируем прогресс
+        if (task.progress != null) {
+          debugPrint(
+            '📊 Прогресс обработки ${taskId}: ${task.stage ?? "Обработка"} - ${(task.progress! * 100).toStringAsFixed(1)}%',
+          );
+        }
+
         // Ждем перед следующей попыткой
         await Future.delayed(pollInterval);
-        attempts++;
       } catch (e) {
         debugPrint('Error polling status: $e');
-        // Продолжаем попытки даже при ошибке
-        await Future.delayed(pollInterval);
-        attempts++;
+        if (!retryOnError) {
+          rethrow;
+        }
+        // При ошибке делаем чуть большую задержку
+        await Future.delayed(pollInterval * 2);
       }
     }
 
-    if (attempts >= maxAttempts) {
-      throw VideoApiException('Превышено максимальное время ожидания');
-    }
+    throw VideoApiException(
+      'Превышено максимальное время ожидания (${timeout.inMinutes} минут)',
+    );
   }
 
   /// Отмена всех активных запросов

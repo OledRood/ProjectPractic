@@ -6,6 +6,8 @@ class VideoTask {
   final DateTime updatedAt;
   final VideoResult? result;
   final String? error;
+  final double? progress; // Прогресс обработки (0.0 - 1.0)
+  final String? stage; // Текущий этап обработки
 
   VideoTask({
     required this.taskId,
@@ -14,6 +16,8 @@ class VideoTask {
     required this.updatedAt,
     this.result,
     this.error,
+    this.progress,
+    this.stage,
   });
 
   factory VideoTask.fromJson(Map<String, dynamic> json) {
@@ -30,6 +34,10 @@ class VideoTask {
           ? VideoResult.fromJson(json['result'] as Map<String, dynamic>)
           : null,
       error: json['error'] as String?,
+      progress: json['progress'] != null
+          ? (json['progress'] as num).toDouble()
+          : null,
+      stage: json['stage'] as String?,
     );
   }
 

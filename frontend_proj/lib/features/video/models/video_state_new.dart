@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-part 'video_state.freezed.dart';
+part 'video_state_new.freezed.dart';
 
 enum VideoStatus { getVideo, loading, result }
 
