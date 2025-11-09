@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend_proj/core/auth/auth_di.dart';
+import 'package:frontend_proj/core/navigation/app_routes.dart';
 import 'package:frontend_proj/features/video/video_di.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:go_router/go_router.dart';
 
 // Условные импорты для Web
 import 'dart:ui_web' as ui_web;
@@ -83,6 +86,18 @@ class _ResultPageState extends ConsumerState<ResultPage> {
       appBar: AppBar(
         title: const Text('Результат обработки'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Выйти',
+            onPressed: () async {
+              await ref.read(authNotifierProvider.notifier).signOut();
+              if (context.mounted) {
+                context.go(AppRoutes.signInPage.path);
+              }
+            },
+          ),
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(

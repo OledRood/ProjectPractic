@@ -9,6 +9,20 @@ class AppNavigation {
 
   AppNavigation(this._router);
 
+  void goToSignIn() {
+    debugPrint(
+      'Navigation: going to SignInPage (${AppRoutes.signInPage.path})',
+    );
+    _router.go(AppRoutes.signInPage.path);
+  }
+
+  void goToSignUp() {
+    debugPrint(
+      'Navigation: going to SignUpPage (${AppRoutes.signUpPage.path})',
+    );
+    _router.go(AppRoutes.signUpPage.path);
+  }
+
   void goToGetVideo() {
     debugPrint(
       'Navigation: going to GetVideoPage (${AppRoutes.getVideoPage.path})',

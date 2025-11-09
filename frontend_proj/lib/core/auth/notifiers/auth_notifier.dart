@@ -4,6 +4,17 @@ import 'package:frontend_proj/core/auth/models/auth_state.dart';
 import 'package:frontend_proj/core/auth/models/user_model.dart';
 import 'package:frontend_proj/core/auth/services/auth_service.dart';
 
+/// ============================================================================
+/// 🔧 РЕЖИМ ЗАГЛУШЕК АКТИВЕН
+/// ============================================================================
+/// Аутентификация работает с mock-данными без реальных запросов к серверу.
+/// Любой email/password будет принят, и пользователь автоматически войдет.
+///
+/// Для активации реальной аутентификации:
+/// 1. Раскомментируйте блоки кода с меткой "📝 Закомментировано для продакшена"
+/// 2. Удалите блоки кода с меткой "🔧 ЗАГЛУШКА"
+/// ============================================================================
+
 /// Notifier для управления состоянием аутентификации
 class AuthNotifier extends Notifier<AuthState> {
   late final AuthService _authService;
@@ -19,14 +30,26 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<void> _checkAuth() async {
     try {
       state = const AuthState.loading();
-      final isAuth = await _authService.isAuthenticated();
 
-      if (isAuth) {
-        final user = await _authService.getCurrentUser();
-        state = AuthState.authenticated(user);
-      } else {
-        state = const AuthState.unauthenticated();
-      }
+      // 🔧 ЗАГЛУШКА: Автоматически считаем пользователя авторизованным
+      await Future.delayed(const Duration(milliseconds: 100));
+      final mockUser = UserModel(
+        id: 'mock-user-123',
+        email: 'mock@example.com',
+        name: 'Mock User',
+        isEmailVerified: true,
+        createdAt: DateTime.now(),
+      );
+      state = AuthState.authenticated(mockUser);
+
+      // 📝 Закомментировано для продакшена:
+      // final isAuth = await _authService.isAuthenticated();
+      // if (isAuth) {
+      //   final user = await _authService.getCurrentUser();
+      //   state = AuthState.authenticated(user);
+      // } else {
+      //   state = const AuthState.unauthenticated();
+      // }
     } catch (e) {
       state = const AuthState.unauthenticated();
     }
@@ -36,8 +59,21 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<void> signUp({required String email, required String password}) async {
     try {
       state = const AuthState.loading();
-      final user = await _authService.signUp(email: email, password: password);
-      state = AuthState.authenticated(user);
+
+      // 🔧 ЗАГЛУШКА: Всегда успешная регистрация
+      await Future.delayed(const Duration(milliseconds: 500));
+      final mockUser = UserModel(
+        id: 'mock-user-${DateTime.now().millisecondsSinceEpoch}',
+        email: email,
+        name: email.split('@').first,
+        isEmailVerified: true,
+        createdAt: DateTime.now(),
+      );
+      state = AuthState.authenticated(mockUser);
+
+      // 📝 Закомментировано для продакшена:
+      // final user = await _authService.signUp(email: email, password: password);
+      // state = AuthState.authenticated(user);
     } catch (e) {
       state = const AuthState.unauthenticated();
       rethrow;
@@ -48,8 +84,21 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<void> signIn({required String email, required String password}) async {
     try {
       state = const AuthState.loading();
-      final user = await _authService.signIn(email: email, password: password);
-      state = AuthState.authenticated(user);
+
+      // 🔧 ЗАГЛУШКА: Всегда успешный вход
+      await Future.delayed(const Duration(milliseconds: 500));
+      final mockUser = UserModel(
+        id: 'mock-user-${email.hashCode}',
+        email: email,
+        name: email.split('@').first,
+        isEmailVerified: true,
+        createdAt: DateTime.now(),
+      );
+      state = AuthState.authenticated(mockUser);
+
+      // 📝 Закомментировано для продакшена:
+      // final user = await _authService.signIn(email: email, password: password);
+      // state = AuthState.authenticated(user);
     } catch (e) {
       state = const AuthState.unauthenticated();
       rethrow;
@@ -59,8 +108,13 @@ class AuthNotifier extends Notifier<AuthState> {
   /// Выход
   Future<void> signOut() async {
     try {
-      await _authService.signOut();
+      // 🔧 ЗАГЛУШКА: Просто очищаем состояние без реального запроса
+      await Future.delayed(const Duration(milliseconds: 200));
       state = const AuthState.unauthenticated();
+
+      // 📝 Закомментировано для продакшена:
+      // await _authService.signOut();
+      // state = const AuthState.unauthenticated();
     } catch (e) {
       // Даже при ошибке выходим
       state = const AuthState.unauthenticated();

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend_proj/core/auth/auth_di.dart';
+import 'package:frontend_proj/core/navigation/app_routes.dart';
 import 'package:frontend_proj/features/video/video_di.dart';
 import 'package:frontend_proj/features/video/domain/video_viewmodel.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'dart:html' as html;
 import 'package:flutter_dropzone/flutter_dropzone.dart';
+import 'package:go_router/go_router.dart';
 
 class GetVideoPage extends ConsumerWidget {
   const GetVideoPage({super.key});
@@ -60,7 +63,21 @@ class GetVideoPage extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Get Video Page')),
+      appBar: AppBar(
+        title: const Text('Get Video Page'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Выйти',
+            onPressed: () async {
+              await ref.read(authNotifierProvider.notifier).signOut();
+              if (context.mounted) {
+                context.go(AppRoutes.signInPage.path);
+              }
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

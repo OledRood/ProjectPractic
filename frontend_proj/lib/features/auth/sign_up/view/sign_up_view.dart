@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend_proj/core/navigation/app_routes.dart';
 import 'package:frontend_proj/features/auth/sign_up/auth_di.dart';
+import 'package:go_router/go_router.dart';
 
 class SignUpPage extends ConsumerWidget {
   const SignUpPage({super.key});
@@ -486,7 +488,7 @@ class _SignInLink extends StatelessWidget {
         ),
         TextButton(
           onPressed: () {
-            // Навигация на страницу входа
+            context.go(AppRoutes.signInPage.path);
           },
           style: TextButton.styleFrom(
             padding: EdgeInsets.zero,
