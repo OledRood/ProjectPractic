@@ -162,21 +162,26 @@ class _VideoPickerWidgetState extends ConsumerState<_VideoPickerWidget> {
         // Для web используем имя файла или bytes
         String? videoPath;
         if (kIsWeb) {
-          // В web версии можем использовать имя файла или создать blob URL
+          // В web версии используем имя файла и сохраняем байты
           videoPath = file.name;
 
           // Получаем длительность видео для web
           if (file.bytes != null) {
             _getVideoDuration(file.bytes!);
           }
+
+          // Вызываем метод viewmodel для сохранения пути и байтов
+          ref
+              .read(VideoDi.videoViewmodelProvider.notifier)
+              .onUploadVideoTap(videoPath, videoBytes: file.bytes);
         } else {
           videoPath = file.path;
-        }
 
-        // Вызываем метод viewmodel для сохранения пути к видео
-        ref
-            .read(VideoDi.videoViewmodelProvider.notifier)
-            .onUploadVideoTap(videoPath);
+          // Для мобильных платформ только путь
+          ref
+              .read(VideoDi.videoViewmodelProvider.notifier)
+              .onUploadVideoTap(videoPath);
+        }
       }
     } catch (e) {
       ref

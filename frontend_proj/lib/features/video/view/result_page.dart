@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:frontend_proj/core/auth/auth_di.dart';
-import 'package:frontend_proj/core/navigation/app_routes.dart';
 import 'package:frontend_proj/features/video/video_di.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:go_router/go_router.dart';
 
 // Условные импорты для Web
 import 'dart:ui_web' as ui_web;
@@ -49,10 +46,27 @@ class _ResultPageState extends ConsumerState<ResultPage> {
           ..src = videoPath
           ..controls = true
           ..autoplay = false
+          ..preload = 'metadata'
           ..style.width = '100%'
           ..style.height = '100%'
           ..style.objectFit = 'contain'
           ..style.borderRadius = '16px';
+
+        // Добавляем обработчики событий для отладки
+        videoElement.onLoadedMetadata.listen((event) {
+          debugPrint('✅ Video metadata loaded for: $videoPath');
+        });
+
+        videoElement.onError.listen((event) {
+          debugPrint('❌ Video error for: $videoPath');
+          debugPrint(
+            'Error: ${videoElement.error?.code} - ${videoElement.error?.message}',
+          );
+        });
+
+        videoElement.onCanPlay.listen((event) {
+          debugPrint('▶️ Video can play: $videoPath');
+        });
 
         return videoElement;
       });
@@ -61,6 +75,80 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     } catch (e) {
       debugPrint('Error registering video view: $e');
     }
+  }
+
+  String _getExerciseTypeName(String? exerciseType) {
+    if (exerciseType == null) return 'Не определено';
+    switch (exerciseType) {
+      case 'push_up':
+        return 'Отжимания';
+      case 'squat':
+        return 'Приседания';
+      case 'long_jump':
+        return 'Прыжок в длину';
+      default:
+        return exerciseType;
+    }
+  }
+
+  String _getCorrectnessName(String? correctness) {
+    if (correctness == null) return 'Не определено';
+    switch (correctness) {
+      case 'correct':
+        return 'Правильно ✓';
+      case 'incorrect':
+        return 'Неправильно ✗';
+      case 'partial':
+        return 'Частично правильно';
+      default:
+        return correctness;
+    }
+  }
+
+  Widget _buildResultRow(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+  ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: colorScheme.surface.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 20, color: colorScheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onPrimaryContainer.withOpacity(0.7),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -86,18 +174,6 @@ class _ResultPageState extends ConsumerState<ResultPage> {
       appBar: AppBar(
         title: const Text('Результат обработки'),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Выйти',
-            onPressed: () async {
-              await ref.read(authNotifierProvider.notifier).signOut();
-              if (context.mounted) {
-                context.go(AppRoutes.signInPage.path);
-              }
-            },
-          ),
-        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -105,6 +181,77 @@ class _ResultPageState extends ConsumerState<ResultPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Карточка с результатами от сервера
+              if (state.exerciseType != null) ...[
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.primaryContainer,
+                        colorScheme.secondaryContainer,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.shadow.withOpacity(0.15),
+                        blurRadius: 24,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.analytics_rounded,
+                            size: 32,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Результаты анализа',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _buildResultRow(
+                        context,
+                        'Тип упражнения',
+                        _getExerciseTypeName(state.exerciseType),
+                        Icons.fitness_center_rounded,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildResultRow(
+                        context,
+                        'Правильность',
+                        _getCorrectnessName(state.correctness),
+                        Icons.check_circle_rounded,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildResultRow(
+                        context,
+                        'Уверенность модели',
+                        state.confidence != null
+                            ? '${(state.confidence! * 100).toStringAsFixed(1)}%'
+                            : 'Не определено',
+                        Icons.speed_rounded,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ],
               // Видеоплеер
               if (state.videoFromServerPath != null && _isViewRegistered) ...[
                 Container(
@@ -197,197 +344,3 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     );
   }
 }
-
-/*
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Видеоплеер
-              if (state.videoFromServerPath != null) ...[
-                Container(
-                  constraints: const BoxConstraints(
-                    maxWidth: 800,
-                    maxHeight: 450,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.shadow.withOpacity(0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: kIsWeb
-                          ? HtmlElementView(viewType: _videoViewId)
-                          : const Center(
-                              child: Text('Видеоплеер доступен только в Web'),
-                            ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Информация о видео
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 800),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: colorScheme.secondaryContainer.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: colorScheme.outline.withOpacity(0.2),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline_rounded,
-                        color: colorScheme.secondary,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Обработанное видео',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: colorScheme.onSecondaryContainer,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              state.videoFromServerPath!,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSecondaryContainer
-                                    .withOpacity(0.8),
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ] else ...[
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.error_outline_rounded,
-                        color: colorScheme.error,
-                        size: 32,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          'Видео не найдено',
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: colorScheme.onErrorContainer,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 40),
-
-              // Кнопки действий
-              Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                alignment: WrapAlignment.center,
-                children: [
-                  if (state.videoFromServerPath != null)
-                    FilledButton.tonalIcon(
-                      onPressed: () {
-                        // Скачать видео
-                        if (kIsWeb && state.videoFromServerPath != null) {
-                          final anchor = html.document.createElement('a');
-                          anchor.setAttribute(
-                            'href',
-                            state.videoFromServerPath!,
-                          );
-                          anchor.setAttribute(
-                            'download',
-                            'processed_video.mp4',
-                          );
-                          anchor.click();
-                        }
-                      },
-                      icon: const Icon(Icons.download_rounded),
-                      label: const Text('Скачать видео'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
-                      ),
-                    ),
-                  FilledButton.icon(
-                    onPressed: () => vm.onRestartVideoSendButtonTap(),
-                    icon: const Icon(Icons.upload_file_rounded),
-                    label: const Text('Загрузить новое видео'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      // Здесь можно добавить функционал истории
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Функция в разработке'),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.history_rounded),
-                    label: const Text('Предыдущие результаты'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-*/
