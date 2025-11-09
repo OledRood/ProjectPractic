@@ -1,0 +1,5 @@
+# Ignore storage directories but keep the folders
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/results/*
+!storage/results/.gitkeep

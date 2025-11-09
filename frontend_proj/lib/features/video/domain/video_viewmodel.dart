@@ -130,6 +130,12 @@ class VideoViewmodel extends Notifier<VideoState> {
       await for (final task in _videoApiService.pollStatus(taskId)) {
         debugPrint('📊 Статус: ${task.status.value}');
 
+        // Обновляем состояние с прогрессом и стадией
+        state = state.copyWith(
+          processingProgress: task.progress ?? 0.0,
+          processingStage: task.stage,
+        );
+
         if (task.status == TaskStatus.completed) {
           debugPrint('🎉 Обработка завершена!');
           debugPrint('📝 Результаты:');
@@ -210,6 +216,8 @@ class VideoViewmodel extends Notifier<VideoState> {
       exerciseType: null,
       correctness: null,
       confidence: null,
+      processingProgress: null,
+      processingStage: null,
     );
   }
 }
