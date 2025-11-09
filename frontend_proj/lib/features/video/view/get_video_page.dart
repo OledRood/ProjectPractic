@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'dart:html' as html;
+import 'dart:typed_data';
 import 'package:flutter_dropzone/flutter_dropzone.dart';
 import 'package:go_router/go_router.dart';
 
@@ -429,10 +430,10 @@ class _VideoPickerWidgetState extends ConsumerState<_VideoPickerWidget> {
       if (reader.result != null) {
         final bytes = reader.result as List<int>;
 
-        // Сохраняем видео
+        // Сохраняем видео с байтами
         ref
             .read(VideoDi.videoViewmodelProvider.notifier)
-            .onUploadVideoTap(file.name);
+            .onUploadVideoTap(file.name, videoBytes: Uint8List.fromList(bytes));
 
         // Получаем длительность
         _getVideoDuration(bytes);
