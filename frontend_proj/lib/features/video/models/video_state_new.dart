@@ -18,11 +18,17 @@ sealed class VideoState with _$VideoState {
     @Default(false) bool showProcessingInfoDialog,
     // Данные с сервера
     String? taskId,
-    String? exerciseType,
-    String? correctness,
+    // === ДАННЫЕ ОТ МОДЕЛИ (реальные) ===
+    /// Тип упражнения: "pushup", "pullup", "unknown"
+    String? exercise,
+    /// Уверенность модели (0-100%)
     double? confidence,
-    String? processingStage,
-    double? processingProgress,
+    /// Список проблем с техникой от модели (может быть пустым = хорошая техника)
+    List<String>? techniqueIssues,
+    /// Метрики углов от модели (elbow_angle, torso_angle, knee_angle, shoulders_high)
+    Map<String, dynamic>? metrics,
+    /// Ошибка анализа от модели (если status == "error")
+    String? analysisError,
     // Для Web: байты файла
     Uint8List? videoBytes,
   }) = _VideoState;
