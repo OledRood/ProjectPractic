@@ -1,430 +1,216 @@
-"""
-Backend API для обработки видео с фитнес-упражнениями на FastAPI.
-
-Endpoints:
-- POST /api/upload - загрузка видео для обработки
-- GET /api/status/{task_id} - проверка статуса обработки
-- GET /api/result/{task_id} - скачивание обработанного видео
-- GET /api/health - проверка работоспособности
-"""
-
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Dict, Optional, Literal
-import uuid
+from fastapi.responses import JSONResponse, FileResponse
 import asyncio
+from collections import deque
 from pathlib import Path
-import time
-import logging
+import uuid
 import aiofiles
-from enum import Enum
-from model_integration import get_model_processor, ModelProcessor
+import logging
+import os
+import time
+import json
+import sys
+import numpy as np
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Logging setup (перенесён выше импортов модели)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Создание приложения FastAPI
-app = FastAPI(
-    title="Video Processing API",
-    description="API для обработки видео с фитнес-упражнениями",
-    version="1.0.0"
-)
+# Helper for JSON serialization of NumPy types
+def convert_numpy(obj):
+    if isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
-# Настройка CORS для Flutter приложения
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # В продакшене указать конкретные домены
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Add path to model code
+# В Docker: модель находится в /app/model (через PYTHONPATH)
+# Локально: модель находится в ../moi-main/project_root
+MODEL_ROOT_DOCKER = Path("/app/model")
+MODEL_ROOT_LOCAL = Path(__file__).parent.parent / "moi-main" / "project_root"
 
-# Конфигурация
-CURRENT_DIR = Path(__file__).parent
-UPLOAD_FOLDER = CURRENT_DIR / 'storage' / 'uploads'
-RESULTS_FOLDER = CURRENT_DIR / 'storage' / 'results'
-ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv'}
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+if MODEL_ROOT_DOCKER.exists():
+    MODEL_ROOT = MODEL_ROOT_DOCKER
+    logger.info(f"Using Docker model path: {MODEL_ROOT}")
+else:
+    MODEL_ROOT = MODEL_ROOT_LOCAL
+    logger.info(f"Using local model path: {MODEL_ROOT}")
 
-# Создаем необходимые директории
-UPLOAD_FOLDER.mkdir(exist_ok=True)
-RESULTS_FOLDER.mkdir(exist_ok=True)
+# Добавляем src в sys.path, чтобы внутренние импорты модели (например, import quick_predict) работали корректно
+sys.path.insert(0, str(MODEL_ROOT / "src"))
+sys.path.insert(0, str(MODEL_ROOT))
 
-# Хранилище задач (в продакшене использовать Redis или БД)
-tasks: Dict[str, Dict] = {}
-
-# Блокировка для обеспечения последовательной обработки
-processing_lock = asyncio.Lock()
-is_processing = False
-
-
-# ============================================================================
-# Pydantic модели для валидации и документации API
-# ============================================================================
-
-class TaskStatus(str, Enum):
-    """Статус задачи обработки."""
-    QUEUED = "queued"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
+# Импорт модели с обработкой ошибок
+analyze_video_for_backend = None
+try:
+    # Теперь можно импортировать напрямую из backend_api, так как src в пути
+    from backend_api import analyze_video_for_backend
+    logger.info("✅ Model imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import model: {e}")
+    logger.error(f"   MODEL_ROOT: {MODEL_ROOT}")
+    logger.error(f"   sys.path: {sys.path[:3]}...")
 
 
-class VideoResult(BaseModel):
-    """Результат обработки видео."""
-    exercise_type: str
-    correctness: str
-    confidence: float
-    frame_count: int
-    output_video: str
+app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+@app.get("/")
+async def root():
+    return {"message": "Backend is running (Integrated Model). Go to /docs for API."}
 
-class TaskResponse(BaseModel):
-    """Ответ с информацией о задаче."""
-    task_id: str
-    status: TaskStatus
-    created_at: float
-    updated_at: float
-    result: Optional[VideoResult] = None
-    error: Optional[str] = None
-    progress: Optional[float] = None  # Прогресс обработки от 0 до 1
-    stage: Optional[str] = None  # Текущий этап обработки
+# Configuration
+UPLOAD_DIR = Path("tmp/uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+# Queue and Tasks
+task_queue = asyncio.Queue(maxsize=100)
+active_tasks = 0
+MAX_CONCURRENT = 1 # Reduce concurrency since model is heavy
+tasks = {}  # {task_id: task_data}
 
-class UploadResponse(BaseModel):
-    """Ответ при загрузке видео."""
-    task_id: str
-    status: TaskStatus
-    message: str
-
-
-class HealthResponse(BaseModel):
-    """Ответ проверки здоровья сервера."""
-    status: str
-    message: str
-    processing: bool
-
-
-def is_video_file(filename: str) -> bool:
-    """Проверка, является ли файл видео."""
-    return Path(filename).suffix.lower() in ALLOWED_VIDEO_EXTENSIONS
-
-
-async def process_video_task(task_id: str, video_path: str, rotation: Optional[int] = None):
-    '''Background task for video processing.
-    
-    :param task_id: Task identifier
-    :param video_path: Path to uploaded video
-    :param rotation: Rotation angle (90, 180, 270 or None)
-    '''
-    global is_processing
-    
-    try:
-        # Обновляем статус
-        tasks[task_id]['status'] = TaskStatus.PROCESSING.value
-        tasks[task_id]['updated_at'] = time.time()
-        logger.info(f"Начало обработки задачи {task_id}")
-        
-        # Получаем процессор модели
-        model_processor = get_model_processor()
-        
-        # Подготавливаем пути для входного и выходного видео
-        input_path = Path(video_path)
-        output_filename = f'result_{task_id}.mp4'
-        output_path = RESULTS_FOLDER / output_filename
-        
-        # Обрабатываем видео с помощью модели
-        logger.info(f"Начало обработки видео моделью: {input_path}")
-        
-        # Обновляем прогресс: начало обработки
-        tasks[task_id].update({
-            'progress': 0.1,
-            'stage': 'Подготовка к обработке'
-        })
-
-        def progress_callback(stage: str, progress: float):
-            """Callback для обновления прогресса обработки"""
-            tasks[task_id].update({
-                'progress': 0.1 + progress * 0.8,  # Оставляем 10% на начало и конец
-                'stage': stage,
-                'updated_at': time.time()
-            })
-            logger.info(f"Прогресс обработки {task_id}: {stage} - {progress:.1%}")
-
-        results = await model_processor.process_video(
-            input_path,
-            output_path,
-            progress_callback=progress_callback
-        )
-        
-        # Проверяем, что файл действительно создан
-        if not output_path.is_file():
-            raise RuntimeError(f"Результирующий файл не был создан по пути: {output_path}")
-        
-        # Проверяем размер файла
-        file_size = output_path.stat().st_size
-        if file_size == 0:
-            raise RuntimeError(f"Результирующий файл пуст: {output_path}")
-            
-        logger.info(f"Результирующий файл создан успешно: {output_path} (размер: {file_size} байт)")
-        
-        # Добавляем имя выходного файла к результатам
-        results['output_video'] = output_filename
-        
-        logger.info(f"Результаты обработки: {results}")
-        
-        # Обновляем задачу с результатами
-        tasks[task_id].update({
-            'status': TaskStatus.COMPLETED.value,
-            'result': results,
-            'updated_at': time.time(),
-            'progress': 1.0,
-            'stage': 'Завершено'
-        })
-        logger.info(f"Задача {task_id} успешно завершена")
-        
-    except Exception as e:
-        logger.error(f"Ошибка при обработке задачи {task_id}: {str(e)}", exc_info=True)
-        tasks[task_id]['status'] = TaskStatus.FAILED.value
-        tasks[task_id]['error'] = str(e)
-        tasks[task_id]['updated_at'] = time.time()
-    
-    finally:
-        # Освобождаем блокировку
-        global is_processing
-        is_processing = False
-        processing_lock.release()
-        logger.info(f"Блокировка обработки освобождена")
-
-
-@app.get("/api/health", response_model=HealthResponse, tags=["Health"])
+@app.get("/api/health")
 async def health_check():
-    """
-    Проверка работоспособности сервера.
-    
-    Returns:
-        HealthResponse: Статус сервера и флаг обработки
-    """
-    return HealthResponse(
-        status="ok",
-        message="Server is running",
-        processing=is_processing
-    )
+    return {"status": "ok"}
 
-
-@app.post("/api/upload", response_model=UploadResponse, status_code=201, tags=["Video"])
-async def upload_video(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    rotation: Optional[int] = Form(None)
-) -> UploadResponse:
-    '''Upload video for processing.
+@app.post("/api/upload")
+async def upload_video(file: UploadFile = File(...), rotation: int = Form(None)):
+    task_id = str(uuid.uuid4())
+    video_path = UPLOAD_DIR / f"{task_id}.mp4"
     
-    :param background_tasks: FastAPI background tasks
-    :param file: Video file (formats: mp4, avi, mov, mkv, webm, etc.)
-    :param rotation: Optional rotation angle (90, 180 or 270 degrees)
-    :return: Task information
-    :raises HTTPException: On validation or upload error
-    '''
-    # Создаем директории, если они не существуют
-    UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
-    RESULTS_FOLDER.mkdir(parents=True, exist_ok=True)
+    # Save file
+    async with aiofiles.open(video_path, "wb") as f:
+        content = await file.read()
+        await f.write(content)
     
-    # Валидация файла
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Empty filename")
-    
-    if not is_video_file(file.filename):
-        raise HTTPException(
-            status_code=400,
-            detail=f"File type not allowed. Allowed extensions: {', '.join(ALLOWED_VIDEO_EXTENSIONS)}"
-        )
-    
-    # Валидация параметра rotation
-    if rotation is not None and rotation not in [90, 180, 270]:
-        raise HTTPException(
-            status_code=400,
-            detail="Rotation must be 90, 180, or 270"
-        )
-    
-    try:
-        # Проверяем размер файла
-        file_size = 0
-        chunk_size = 1024 * 1024  # 1MB chunks
-        
-        # Генерируем уникальный ID задачи
-        task_id = str(uuid.uuid4())
-        
-        # Определяем расширение и безопасное имя файла
-        file_ext = Path(file.filename).suffix.lower()
-        safe_filename = f'{task_id}{file_ext}'
-        video_path = UPLOAD_FOLDER / safe_filename
-        
-        # Асинхронно сохраняем файл по частям
-        async with aiofiles.open(video_path, 'wb') as out_file:
-            while content := await file.read(chunk_size):
-                await out_file.write(content)
-                file_size += len(content)
-                if file_size > MAX_FILE_SIZE:
-                    await out_file.close()
-                    video_path.unlink(missing_ok=True)
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"File too large. Maximum size is {MAX_FILE_SIZE/(1024*1024)}MB"
-                    )
-        
-        file_size = video_path.stat().st_size
-        logger.info(f"Видео загружено: {video_path} (размер: {file_size} байт)")
-        
-        # Создаем запись о задаче
-        tasks[task_id] = {
-            'id': task_id,
-            'status': TaskStatus.QUEUED.value,
-            'created_at': time.time(),
-            'updated_at': time.time(),
-            'video_path': str(video_path),
-            'rotation': rotation,
-            'filename': file.filename,
-            'progress': 0.0,
-            'stage': 'В очереди'
-        }
-        
-        # Пытаемся захватить блокировку для обработки
-        if not processing_lock.locked():
-            await processing_lock.acquire()
-            global is_processing
-            is_processing = True
-            # Запускаем обработку в фоне
-            background_tasks.add_task(process_video_task, task_id, str(video_path), rotation)
-            logger.info(f"Обработка задачи {task_id} запущена немедленно")
-        else:
-            logger.info(f"Задача {task_id} поставлена в очередь")
-        
-        return UploadResponse(
-            task_id=task_id,
-            status=TaskStatus(tasks[task_id]['status']),
-            message="Video uploaded successfully"
-        )
-        
-    except Exception as e:
-        logger.error(f"Ошибка при загрузке видео: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
-
-
-@app.get("/api/status/{task_id}", response_model=TaskResponse, tags=["Video"])
-async def get_status(task_id: str) -> TaskResponse:
-    '''Get task processing status.
-    
-    :param task_id: Task identifier
-    :return: Task status information
-    :raises HTTPException: If task not found
-    '''
-    if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="Task not found")
-    
-    task = tasks[task_id]
-    
-    # Формируем ответ
-    response_data = {
-        'task_id': task['id'],
-        'status': task['status'],
-        'created_at': task['created_at'],
-        'updated_at': task['updated_at'],
-        'progress': task.get('progress', 0.0),
-        'stage': task.get('stage', 'Неизвестно')
+    now = time.time()
+    task_data = {
+        "task_id": task_id,
+        "status": "queued",
+        "created_at": now,
+        "updated_at": now,
+        "video_path": str(video_path),
+        "rotation": rotation
     }
     
-    # Добавляем результат если обработка завершена
-    if task['status'] == TaskStatus.COMPLETED.value:
-        response_data['result'] = VideoResult(**task['result'])
+    tasks[task_id] = task_data
+    await task_queue.put(task_id)
     
-    # Добавляем ошибку если обработка провалилась
-    if task['status'] == TaskStatus.FAILED.value:
-        response_data['error'] = task.get('error', 'Unknown error')
-    
-    return TaskResponse(**response_data)
+    return {
+        "task_id": task_id, 
+        "status": "queued",
+        "created_at": now,
+        "updated_at": now
+    }
 
-
-@app.get("/api/result/{task_id}", response_class=FileResponse, tags=["Video"])
-async def get_result(task_id: str) -> FileResponse:
-    '''Download processed video.
+@app.get("/api/status/{task_id}")
+async def get_status(task_id: str):
+    if task_id not in tasks:
+        raise HTTPException(status_code=404, detail="Task not found")
     
-    :param task_id: Task identifier
-    :return: Processed video file in MP4 format
-    :raises HTTPException: If task not found or result not available
-    '''
+    task = tasks[task_id].copy()
+    # Remove internal paths before sending
+    if "video_path" in task:
+        del task["video_path"]
+    
+    try:
+        # Use json.loads(json.dumps(...)) to recursively convert all numpy types
+        clean_task = json.loads(json.dumps(task, default=convert_numpy))
+        return clean_task
+    except Exception as e:
+        logger.error(f"JSON serialization failed in get_status: {e}")
+        # Fallback: return task as is (might fail if it has numpy types)
+        return task
+
+@app.get("/api/result/{task_id}")
+async def get_result(task_id: str):
     if task_id not in tasks:
         raise HTTPException(status_code=404, detail="Task not found")
     
     task = tasks[task_id]
+    if task["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Task not completed")
     
-    if task['status'] != TaskStatus.COMPLETED.value:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Task not completed. Current status: {task['status']}"
-        )
+    if "result" not in task:
+        raise HTTPException(status_code=404, detail="Result not found")
+        
+    # Frontend expects the VIDEO FILE at this endpoint, not the JSON result.
+    # The JSON result is obtained via the polling status endpoint.
     
-    # Получаем путь к результирующему видео (всегда MP4)
-    result_video = task['result']['output_video']
-    video_path = RESULTS_FOLDER / result_video
+    # Construct path to the generated skeleton video
+    # Filename format from quick_predict.py: {video_stem}_skeleton.mp4
+    # video_stem is task_id
+    output_filename = f"{task_id}_skeleton.mp4"
+    output_path = MODEL_ROOT / "data" / "output_videos" / output_filename
     
-    if not video_path.exists():
-        raise HTTPException(status_code=404, detail="Result video not found")
-    
-    # Возвращаем видео с правильными заголовками для воспроизведения в браузере
-    return FileResponse(
-        path=str(video_path),
-        media_type='video/mp4',
-        filename=result_video,
-        headers={
-            'Content-Disposition': f'inline; filename="{result_video}"',
-            'Accept-Ranges': 'bytes',
-        }
-    )
+    if output_path.exists():
+        logger.info(f"Serving processed video: {output_path}")
+        return FileResponse(output_path, media_type="video/mp4", filename=output_filename)
+    else:
+        logger.error(f"Processed video not found at {output_path}")
+        # If video is missing but task is completed, it's an error state for the video file
+        raise HTTPException(status_code=404, detail="Processed video file not found")
 
+async def worker():
+    global active_tasks
+    logger.info("Worker started")
+    while True:
+        if active_tasks >= MAX_CONCURRENT:
+            await asyncio.sleep(1)
+            continue
+            
+        task_id = await task_queue.get()
+        active_tasks += 1
+        
+        try:
+            logger.info(f"Processing task {task_id}")
+            tasks[task_id]["status"] = "processing"
+            tasks[task_id]["updated_at"] = time.time()
+            tasks[task_id]["stage"] = "processing"
+            tasks[task_id]["progress"] = 0.0
+            
+            video_path = Path(tasks[task_id]["video_path"])
+            rotation = tasks[task_id].get("rotation")
+            
+            # Call model directly in thread pool to avoid blocking
+            logger.info(f"Starting model analysis for {video_path}")
+            
+            if analyze_video_for_backend is None:
+                raise RuntimeError("Model not loaded. Check logs for import errors.")
+            
+            result = await asyncio.to_thread(analyze_video_for_backend, str(video_path))
+            
+            tasks[task_id]["status"] = "completed"
+            tasks[task_id]["result"] = result
+            tasks[task_id]["progress"] = 1.0
+            tasks[task_id]["stage"] = "completed"
+            
+        except Exception as e:
+            logger.error(f"Task {task_id} failed: {e}")
+            tasks[task_id]["status"] = "failed"
+            tasks[task_id]["error"] = str(e)
+        finally:
+            tasks[task_id]["updated_at"] = time.time()
+            active_tasks -= 1
+            # Cleanup video file
+            try:
+                Path(tasks[task_id]["video_path"]).unlink(missing_ok=True)
+            except Exception as e:
+                logger.error(f"Failed to delete temp file: {e}")
 
-@app.get("/api/tasks", tags=["Debug"])
-async def list_tasks() -> dict:
-    '''Get list of all tasks (debug endpoint).
-    
-    :return: List of all tasks and their statuses
-    '''
-    task_list = []
-    for task_id, task in tasks.items():
-        task_info = {
-            'task_id': task_id,
-            'status': task['status'],
-            'created_at': task['created_at'],
-            'updated_at': task['updated_at'],
-            'filename': task['filename']
-        }
-        task_list.append(task_info)
-    
-    return {'tasks': task_list}
-
+@app.on_event("startup")
+async def startup():
+    logger.info("------------------------------------------------")
+    logger.info(f"Backend started (Integrated Model Mode).")
+    logger.info(f"Upload Directory: {UPLOAD_DIR}")
+    logger.info(f"Model Root: {MODEL_ROOT}")
+    logger.info("------------------------------------------------")
+    asyncio.create_task(worker())
 
 if __name__ == '__main__':
     import uvicorn
-    
-    logger.info("=" * 50)
-    logger.info("🚀 Запуск FastAPI сервера...")
-    logger.info("=" * 50)
-    logger.info(f"📁 Upload folder: {UPLOAD_FOLDER.absolute()}")
-    logger.info(f"📁 Results folder: {RESULTS_FOLDER.absolute()}")
-    logger.info(f"🌐 API документация: http://localhost:8000/docs")
-    logger.info(f"📖 ReDoc: http://localhost:8000/redoc")
-    logger.info("=" * 50)
-    
-    # Запускаем сервер с uvicorn
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        log_level="info"
-    )
+    uvicorn.run(app, host='0.0.0.0', port=8000)
