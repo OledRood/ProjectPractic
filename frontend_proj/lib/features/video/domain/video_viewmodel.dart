@@ -130,25 +130,32 @@ class VideoViewmodel extends Notifier<VideoState> {
       await for (final task in _videoApiService.pollStatus(taskId)) {
         debugPrint('📊 Статус: ${task.status.value}');
 
-        // Обновляем состояние с прогрессом и стадией
-        state = state.copyWith(
-          processingProgress: task.progress ?? 0.0,
-          processingStage: task.stage,
-        );
-
         if (task.status == TaskStatus.completed) {
+          final result = task.result!;
           debugPrint('🎉 Обработка завершена!');
-          debugPrint('📝 Результаты:');
-          debugPrint('   - Упражнение: ${task.result!.exerciseTypeName}');
-          debugPrint('   - Корректность: ${task.result!.correctnessName}');
+          debugPrint('📝 Результаты от модели:');
+          debugPrint('   - Статус: ${result.status}');
+          debugPrint('   - Упражнение: ${result.exercise}');
           debugPrint(
-            '   - Уверенность: ${(task.result!.confidence * 100).toStringAsFixed(1)}%',
+            '   - Уверенность: ${result.confidence?.toStringAsFixed(1)}%',
           );
-          debugPrint('   - Кадров: ${task.result!.frameCount}');
+          debugPrint('   - Проблемы техники: ${result.techniqueIssues.length}');
+          debugPrint('   - Метрики: ${result.metrics}');
 
-          // Сохраняем task_id для скачивания видео
-          // В реальном приложении нужно скачать видео и сохранить путь
-          // Пока используем task_id как идентификатор
+          // Проверяем на ошибку от модели
+          if (result.hasError) {
+            state = state.copyWith(
+              analysisError: result.error ?? 'Ошибка анализа видео',
+              status: VideoStatus.result,
+              isLoading: false,
+              taskId: taskId,
+            );
+            await Future.delayed(Duration.zero);
+            _navigateByStatus(VideoStatus.result);
+            return;
+          }
+
+          // Успешная обработка - сохраняем данные от модели
           final resultVideoUrl = 'http://localhost:8000/api/result/$taskId';
 
           state = state.copyWith(
@@ -156,9 +163,12 @@ class VideoViewmodel extends Notifier<VideoState> {
             status: VideoStatus.result,
             isLoading: false,
             taskId: taskId,
-            exerciseType: task.result!.exerciseType,
-            correctness: task.result!.correctness,
-            confidence: task.result!.confidence,
+            // Данные от модели
+            exercise: result.exercise,
+            confidence: result.confidence,
+            techniqueIssues: result.techniqueIssues,
+            metrics: result.metrics,
+            analysisError: null,
           );
 
           await Future.delayed(Duration.zero);
@@ -211,13 +221,13 @@ class VideoViewmodel extends Notifier<VideoState> {
       videoDuration: null,
       isLoading: false,
       videoBytes: null,
-      // Сбрасываем данные с сервера
+      // Сбрасываем данные от модели
       taskId: null,
-      exerciseType: null,
-      correctness: null,
+      exercise: null,
       confidence: null,
-      processingProgress: null,
-      processingStage: null,
+      techniqueIssues: null,
+      metrics: null,
+      analysisError: null,
     );
   }
 }
