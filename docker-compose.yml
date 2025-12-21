@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # Backend FastAPI server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: projectpractice-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Add environment variables if needed
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      # Backend API configuration
+      - LOG_LEVEL=info
+    volumes:
+      # Mount backend code for development (reload on changes)
+      - ./backend:/app
+      # Persist model cache
+      - backend_cache:/app/.cache
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - model
+    restart: unless-stopped
+
+  # ML Model service (can be used for inference)
+  model:
+    build:
+      context: ./moi-main
+      dockerfile: Dockerfile
+    container_name: projectpractice-model
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      # Mount model code
+      - ./moi-main:/app
+      # Persist downloaded models (important for torch/ultralytics)
+      - model_data:/app/models
+      - model_cache:/root/.cache
+    networks:
+      - app_network
+    # Keep container running for inference requests
+    stdin_open: true
+    tty: true
+    # Model container usually doesn't expose ports directly
+    # but can be called from backend if needed
+    restart: unless-stopped
+
+  # Frontend Flutter Web
+  frontend:
+    build:
+      context: ./frontend_proj
+      dockerfile: Dockerfile
+    container_name: projectpractice-frontend
+    ports:
+      - "80:80"
+    networks:
+      - app_network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/index.html"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  backend_cache:
+    driver: local
+  model_data:
+    driver: local
+  model_cache:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
