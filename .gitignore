@@ -73,3 +73,7 @@ ENV/
 env.bak/
 venv.bak/
 
+moi-main/project_root/data/temp_frames/
+moi-main/project_root/data/output_videos/
+moi-main/project_root/data/temp_skeletons/
+backend/tmp/

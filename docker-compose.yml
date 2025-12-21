@@ -1,17 +1,38 @@
 version: '3.8'
+
 services:
+  # Backend + Model в одном контейнере
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.combined
     ports:
       - "8000:8000"
-    depends_on:
-      - moi_model
     volumes:
-      - ./backend/tmp:/tmp
+      - ./backend/storage:/app/storage
+      - ./backend:/app/backend
+      - ./moi-main/project_root:/app/model
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
     environment:
-      - MODEL_SERVICE_URL=http://moi_model:8001
+      - PYTHONPATH=/app/model
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
-  moi_model:
-    build: ./moi-main
+  # Frontend (Flutter Web + Nginx)
+  frontend:
+    build:
+      context: ./frontend_proj
+      dockerfile: Dockerfile
     ports:
-      - "8001:8001"
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge

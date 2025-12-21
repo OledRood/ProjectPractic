@@ -1,0 +1,11 @@
+.git
+.gitignore
+.DS_Store
+**/venv
+**/__pycache__
+**/.dart_tool
+**/.idea
+**/build
+**/dist
+backend/storage/uploads
+backend/storage/results

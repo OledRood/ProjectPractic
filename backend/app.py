@@ -11,23 +11,50 @@ import os
 import time
 import json
 import sys
+import numpy as np
 
-# Add path to model code
-# Assuming backend/ is current dir, model code is in ../moi-main/project_root
-# We need to add the parent of 'src' to sys.path so we can do 'from src.backend_api import ...'
-MODEL_ROOT = Path(__file__).parent.parent / "moi-main" / "project_root"
-sys.path.append(str(MODEL_ROOT))
-
-try:
-    from src.backend_api import analyze_video_for_backend
-except ImportError as e:
-    logger.error(f"Failed to import model: {e}")
-    # Fallback for development if paths are different
-    pass
-
-# Logging setup
+# Logging setup (перенесён выше импортов модели)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Helper for JSON serialization of NumPy types
+def convert_numpy(obj):
+    if isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+# Add path to model code
+# В Docker: модель находится в /app/model (через PYTHONPATH)
+# Локально: модель находится в ../moi-main/project_root
+MODEL_ROOT_DOCKER = Path("/app/model")
+MODEL_ROOT_LOCAL = Path(__file__).parent.parent / "moi-main" / "project_root"
+
+if MODEL_ROOT_DOCKER.exists():
+    MODEL_ROOT = MODEL_ROOT_DOCKER
+    logger.info(f"Using Docker model path: {MODEL_ROOT}")
+else:
+    MODEL_ROOT = MODEL_ROOT_LOCAL
+    logger.info(f"Using local model path: {MODEL_ROOT}")
+
+# Добавляем src в sys.path, чтобы внутренние импорты модели (например, import quick_predict) работали корректно
+sys.path.insert(0, str(MODEL_ROOT / "src"))
+sys.path.insert(0, str(MODEL_ROOT))
+
+# Импорт модели с обработкой ошибок
+analyze_video_for_backend = None
+try:
+    # Теперь можно импортировать напрямую из backend_api, так как src в пути
+    from backend_api import analyze_video_for_backend
+    logger.info("✅ Model imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import model: {e}")
+    logger.error(f"   MODEL_ROOT: {MODEL_ROOT}")
+    logger.error(f"   sys.path: {sys.path[:3]}...")
+
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -89,7 +116,15 @@ async def get_status(task_id: str):
     # Remove internal paths before sending
     if "video_path" in task:
         del task["video_path"]
-    return task
+    
+    try:
+        # Use json.loads(json.dumps(...)) to recursively convert all numpy types
+        clean_task = json.loads(json.dumps(task, default=convert_numpy))
+        return clean_task
+    except Exception as e:
+        logger.error(f"JSON serialization failed in get_status: {e}")
+        # Fallback: return task as is (might fail if it has numpy types)
+        return task
 
 @app.get("/api/result/{task_id}")
 async def get_result(task_id: str):
@@ -103,13 +138,22 @@ async def get_result(task_id: str):
     if "result" not in task:
         raise HTTPException(status_code=404, detail="Result not found")
         
-    # Return the result as a JSON file download
-    # We can create a temporary file or stream it.
-    # Since the result is in memory (dict), we can return it as JSONResponse
-    # But if frontend uses 'download', it might expect a file attachment.
-    # Let's try returning JSONResponse first, as it's the cleanest proxy.
-    # If frontend fails, we might need to force it as a file.
-    return JSONResponse(content=task["result"])
+    # Frontend expects the VIDEO FILE at this endpoint, not the JSON result.
+    # The JSON result is obtained via the polling status endpoint.
+    
+    # Construct path to the generated skeleton video
+    # Filename format from quick_predict.py: {video_stem}_skeleton.mp4
+    # video_stem is task_id
+    output_filename = f"{task_id}_skeleton.mp4"
+    output_path = MODEL_ROOT / "data" / "output_videos" / output_filename
+    
+    if output_path.exists():
+        logger.info(f"Serving processed video: {output_path}")
+        return FileResponse(output_path, media_type="video/mp4", filename=output_filename)
+    else:
+        logger.error(f"Processed video not found at {output_path}")
+        # If video is missing but task is completed, it's an error state for the video file
+        raise HTTPException(status_code=404, detail="Processed video file not found")
 
 async def worker():
     global active_tasks
@@ -134,6 +178,10 @@ async def worker():
             
             # Call model directly in thread pool to avoid blocking
             logger.info(f"Starting model analysis for {video_path}")
+            
+            if analyze_video_for_backend is None:
+                raise RuntimeError("Model not loaded. Check logs for import errors.")
+            
             result = await asyncio.to_thread(analyze_video_for_backend, str(video_path))
             
             tasks[task_id]["status"] = "completed"

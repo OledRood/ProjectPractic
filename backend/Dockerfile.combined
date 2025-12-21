@@ -1,0 +1,50 @@
+# Backend + Model в одном контейнере
+# Этот Dockerfile собирается из корня проекта (context: .)
+
+FROM python:3.9.6-slim
+
+WORKDIR /app
+
+# Install system dependencies for OpenCV, MediaPipe, etc.
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install requirements
+# First model requirements (heavier dependencies)
+COPY moi-main/requirements.txt /tmp/model_requirements.txt
+RUN pip install --no-cache-dir -r /tmp/model_requirements.txt
+
+# Pre-download MediaPipe models
+RUN python -c "import mediapipe as mp; mp.solutions.pose.Pose(static_image_mode=True, model_complexity=2)"
+
+# Then backend requirements
+COPY backend/requirements.txt /tmp/backend_requirements.txt
+RUN pip install --no-cache-dir -r /tmp/backend_requirements.txt
+
+# Copy model code
+COPY moi-main/project_root /app/model
+
+# Copy backend code
+COPY backend /app/backend
+
+# Create storage directories
+RUN mkdir -p /app/storage/uploads /app/storage/results
+
+# Set PYTHONPATH for model imports
+ENV PYTHONPATH="/app/model:/app/backend:${PYTHONPATH}"
+
+# Working directory for backend
+WORKDIR /app/backend
+
+# Expose port
+EXPOSE 8000
+
+# Run backend server
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

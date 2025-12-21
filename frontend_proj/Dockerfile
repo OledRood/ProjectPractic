@@ -1,5 +1,5 @@
 # Этап 1: Сборка Flutter web приложения
-FROM ghcr.io/cirruslabs/flutter:3.24.0 AS build-env
+FROM ghcr.io/cirruslabs/flutter:stable AS build-env
 
 # Копирование проекта
 WORKDIR /app
