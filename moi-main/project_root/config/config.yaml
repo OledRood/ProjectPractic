@@ -1,0 +1,107 @@
+model:
+  landmarks: ['LEFT_SHOULDER', 'RIGHT_SHOULDER', 'LEFT_HIP', 'RIGHT_HIP', 'LEFT_ELBOW', 'RIGHT_ELBOW', 'LEFT_WRIST', 'RIGHT_WRIST', 'LEFT_KNEE', 'RIGHT_KNEE', 'LEFT_ANKLE', 'RIGHT_ANKLE']
+  exercise_types: ['pushup', 'pullup']  # ✅ ТОЛЬКО два класса
+  max_seq_len: 100
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.2
+  
+  # ✅ THRESHOLD для unknown
+  confidence_threshold: 0.6  # Если уверенность < 60% → unknown
+
+# ✅ ПАРАМЕТРЫ ОТЖИМАНИЯ (PUSHUP)
+pushup:
+  description: "Отжимание от пола"
+  key_points: ['LEFT_ELBOW', 'RIGHT_ELBOW', 'LEFT_SHOULDER', 'RIGHT_SHOULDER']
+  
+  correctness_thresholds:
+    # Локти должны сгибаться минимум на 80 градусов
+    elbow_bend_angle_min: 80
+    # Туловище должно быть почти параллельно полу (угол наклона макс 60°)
+    torso_angle_max: 60
+    # Минимальный угол между туловищем и полом
+    body_alignment_min: 30
+    # Движение должно быть в основном вертикальном
+    vertical_movement_ratio_min: 0.7
+    # Руки должны быть примерно на ширине плеч (расстояние между локтями)
+    elbow_distance_min: 0.2
+    elbow_distance_max: 0.5
+    # Видимость суставов
+    min_visibility: 0.5
+
+  heuristic_thresholds:
+    # Вертикальное движение плеч (вверх-вниз)
+    shoulder_vertical_delta_min: 0.15  # Должны подняться на 15% от высоты
+    # Локти движутся в основном вертикально
+    elbow_horizontal_delta_max: 0.1    # Минимальное боковое движение
+    # Синхронность локтей (должны двигаться одинаково)
+    elbow_sync_threshold: 0.15
+    # BiLSTM уверенность
+    bilstm_confidence_min: 0.65
+    # Минимум кадров для упражнения (отжимание медленнее)
+    min_frames_required: 60
+    # Максимум кадров (одно отжимание ~1-2 сек = 30-60 кадров)
+    max_frames_per_rep: 60
+
+# ✅ ПАРАМЕТРЫ ПОДТЯГИВАНИЯ (PULLUP)
+pullup:
+  description: "Подтягивание на перекладине"
+  key_points: ['LEFT_ELBOW', 'RIGHT_ELBOW', 'LEFT_SHOULDER', 'RIGHT_SHOULDER', 'LEFT_WRIST', 'RIGHT_WRIST']
+  
+  correctness_thresholds:
+    # Локти должны сгибаться минимум на 90 градусов (меньше чем при pushup!)
+    elbow_bend_angle_min: 90
+    # Плечи должны подняться выше локтей (важное отличие!)
+    shoulder_elevation_min: 0.3
+    # Туловище остаётся вертикальным (не наклоняется)
+    torso_angle_max: 30
+    # Минимальное горизонтальное движение (не раскачиваемся)
+    horizontal_movement_max: 0.1
+    # Видимость суставов
+    min_visibility: 0.5
+
+  heuristic_thresholds:
+    # Вертикальное движение - ГЛАВНОЕ при подтягивании!
+    shoulder_vertical_delta_min: 0.4   # Должны подняться на 40% (большое движение!)
+    # Локти движутся ТОЛЬКО вертикально
+    elbow_horizontal_delta_max: 0.08   # Очень ограниченное боковое движение
+    # Запястья должны оставаться на месте (на перекладине)
+    wrist_movement_max: 0.05           # Минимальное движение запястий
+    # Синхронность локтей (очень важна!)
+    elbow_sync_threshold: 0.1          # Локти движутся синхронно
+    # BiLSTM уверенность (выше чем для pushup)
+    bilstm_confidence_min: 0.7
+    # Минимум кадров для упражнения
+    min_frames_required: 50
+    # Максимум кадров (подтягивание быстрее ~ 20-40 кадров)
+    max_frames_per_rep: 50
+    # СПЕЦИФИЧНЫЙ для pullup множитель
+    pullup_vertical_multiplier: 3.0    # Вертикальное движение очень важно
+
+# ✅ ОБЩИЕ НАСТРОЙКИ МЕДИАПАЙП И YOLO
+mediapipe:
+  model_complexity: 2        # Максимальная точность (0=lite, 1=full, 2=heavy)
+  min_detection_confidence: 0.4  # Низкий порог для обнаружения
+  min_tracking_confidence: 0.5   # Для видео
+
+yolo:
+  model: yolov8m-pose        # Medium модель для баланса точности/скорости
+  conf_threshold: 0.6        # Высокий порог уверенности
+  iou_threshold: 0.45        # Non-maximum suppression
+  device: cpu                # или cuda если есть GPU
+
+# ✅ РАЗЛИЧИЯ МЕЖДУ УПРАЖНЕНИЯМИ (для debug)
+differences:
+  pushup_vs_pullup:
+    pushup:
+      - "Локти сгибаются на 80°+"
+      - "Туловище наклоняется вперёд (60°)"
+      - "Движение в основном горизонтальное"
+      - "Плечи не поднимаются выше локтей"
+      - "Синхронное движение обеих рук"
+    pullup:
+      - "Локти сгибаются на 90°+"
+      - "Туловище остаётся вертикальным (30°)"
+      - "Движение в основном вертикальное (+40%)"
+      - "Плечи поднимаются выше локтей"
+      - "Идеально синхронное движение рук"
