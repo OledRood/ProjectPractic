@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:frontend_proj/core/auth/auth_di.dart';
-import 'package:frontend_proj/core/navigation/app_routes.dart';
 import 'package:frontend_proj/features/video/video_di.dart';
 import 'package:frontend_proj/features/video/models/video_state.dart';
-import 'package:go_router/go_router.dart';
 
 class LoadingPage extends ConsumerWidget {
   const LoadingPage({super.key});
@@ -13,14 +10,7 @@ class LoadingPage extends ConsumerWidget {
     if (state.taskId == null) {
       return 'Загрузка видео на сервер...';
     }
-
-    if (state.processingStage != null) {
-      return state.processingStage!;
-    }
-
-    return state.processingProgress != null
-        ? 'Обработка видео (${(state.processingProgress! * 100).toStringAsFixed(1)}%)'
-        : 'Обработка видео...';
+    return 'Анализ видео моделью...';
   }
 
   String _getEstimatedTime(VideoState state) {
@@ -43,21 +33,7 @@ class LoadingPage extends ConsumerWidget {
     debugPrint('LoadingPage: status=${state.status}, taskId=${state.taskId}');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Обработка видео'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Выйти',
-            onPressed: () async {
-              await ref.read(authNotifierProvider.notifier).signOut();
-              if (context.mounted) {
-                context.go(AppRoutes.signInPage.path);
-              }
-            },
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Обработка видео')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -117,20 +93,10 @@ class LoadingPage extends ConsumerWidget {
                 width: 400,
                 child: Column(
                   children: [
-                    LinearProgressIndicator(
-                      value: state.processingProgress,
+                    const LinearProgressIndicator(
                       minHeight: 8,
-                      borderRadius: const BorderRadius.all(Radius.circular(20)),
+                      borderRadius: BorderRadius.all(Radius.circular(20)),
                     ),
-                    const SizedBox(height: 8),
-                    if (state.processingProgress != null)
-                      Text(
-                        '${(state.processingProgress! * 100).toStringAsFixed(1)}%',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
                     const SizedBox(height: 16),
                     Text(
                       'Пожалуйста, не закрывайте эту страницу',

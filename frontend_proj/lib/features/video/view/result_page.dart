@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend_proj/features/video/domain/video_viewmodel.dart';
+import 'package:frontend_proj/features/video/models/video_state.dart';
 import 'package:frontend_proj/features/video/video_di.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 // Условные импорты для Web
 import 'dart:ui_web' as ui_web;
 import 'dart:html' as html;
+
+import 'package:frontend_proj/features/video/view/result_widgets.dart/analysis_error_card.dart';
+import 'package:frontend_proj/features/video/view/result_widgets.dart/analysis_result_card.dart';
+import 'package:frontend_proj/features/video/view/result_widgets.dart/metric_card.dart';
+import 'package:frontend_proj/features/video/view/result_widgets.dart/technique_assessment_card.dart';
+import 'package:frontend_proj/features/video/view/result_widgets.dart/video_player_widget.dart';
 
 class ResultPage extends ConsumerStatefulWidget {
   const ResultPage({super.key});
@@ -77,80 +85,6 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     }
   }
 
-  String _getExerciseTypeName(String? exerciseType) {
-    if (exerciseType == null) return 'Не определено';
-    switch (exerciseType) {
-      case 'push_up':
-        return 'Отжимания';
-      case 'squat':
-        return 'Приседания';
-      case 'long_jump':
-        return 'Прыжок в длину';
-      default:
-        return exerciseType;
-    }
-  }
-
-  String _getCorrectnessName(String? correctness) {
-    if (correctness == null) return 'Не определено';
-    switch (correctness) {
-      case 'correct':
-        return 'Правильно ✓';
-      case 'incorrect':
-        return 'Неправильно ✗';
-      case 'partial':
-        return 'Частично правильно';
-      default:
-        return correctness;
-    }
-  }
-
-  Widget _buildResultRow(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-  ) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: colorScheme.surface.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 20, color: colorScheme.primary),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onPrimaryContainer.withOpacity(0.7),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final vm = ref.watch(VideoDi.videoViewmodelProvider.notifier);
@@ -171,176 +105,133 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Результат обработки'),
-        centerTitle: true,
-      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Карточка с результатами от сервера
-              if (state.exerciseType != null) ...[
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 800),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        colorScheme.primaryContainer,
-                        colorScheme.secondaryContainer,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.shadow.withOpacity(0.15),
-                        blurRadius: 24,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.analytics_rounded,
-                            size: 32,
-                            color: colorScheme.primary,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Результаты анализа',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onPrimaryContainer,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      _buildResultRow(
-                        context,
-                        'Тип упражнения',
-                        _getExerciseTypeName(state.exerciseType),
-                        Icons.fitness_center_rounded,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildResultRow(
-                        context,
-                        'Правильность',
-                        _getCorrectnessName(state.correctness),
-                        Icons.check_circle_rounded,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildResultRow(
-                        context,
-                        'Уверенность модели',
-                        state.confidence != null
-                            ? '${(state.confidence! * 100).toStringAsFixed(1)}%'
-                            : 'Не определено',
-                        Icons.speed_rounded,
-                      ),
-                    ],
-                  ),
-                ),
+              // Карточка с ошибкой анализа (если есть)
+              if (state.analysisError != null) ...[
+                AnalysisErrorCard(analysisError: state.analysisError!),
                 const SizedBox(height: 32),
               ],
-              // Видеоплеер
-              if (state.videoFromServerPath != null && _isViewRegistered) ...[
-                Container(
-                  constraints: const BoxConstraints(
-                    maxWidth: 800,
-                    maxHeight: 450,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.shadow.withOpacity(0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: kIsWeb
-                          ? HtmlElementView(viewType: _videoViewId)
-                          : const Center(
-                              child: Text('Видеоплеер доступен только в Web'),
-                            ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ] else if (state.videoFromServerPath == null) ...[
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.error_outline_rounded,
-                        color: colorScheme.error,
-                        size: 32,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          'Видео не найдено',
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: colorScheme.onErrorContainer,
+
+              // Карточка с результатами от модели (адаптивная верстка)
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 1025;
+                  final isMedium = constraints.maxWidth > 725;
+                  
+                  // Ширина для MetricsCard зависит от размера экрана
+                  final metricsWidth = isWide 
+                      ? 450.0 
+                      : isMedium 
+                          ? 380.0 
+                          : constraints.maxWidth;
+                  
+                  // Ширина для левой колонки
+                  final leftColumnWidth = isWide 
+                      ? constraints.maxWidth - metricsWidth - 24 
+                      : isMedium 
+                          ? constraints.maxWidth - metricsWidth - 24 
+                          : constraints.maxWidth;
+
+                  final leftColumn = SizedBox(
+                    width: isMedium ? leftColumnWidth : null,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 24.0),
+                          child: AnalysisResultCard(
+                            confidence: state.confidence,
+                            exercise: state.exercise,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ] else ...[
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                const Text('Загрузка видеоплеера...'),
-              ],
+                        Padding(
+                          padding: EdgeInsets.only(bottom: isMedium ? 0 : 24),
+                          child: TechniqueAssessmentCard(
+                            techniqueIssues: state.techniqueIssues,
+                            exercise: state.exercise,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
 
-              const SizedBox(height: 40),
-
-              // Кнопки действий
-              Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                alignment: WrapAlignment.center,
-                children: [
-                  FilledButton.icon(
-                    onPressed: () => vm.onRestartVideoSendButtonTap(),
-                    icon: const Icon(Icons.upload_file_rounded),
-                    label: const Text('Загрузить новое видео'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
+                  final metricsCard = SizedBox(
+                    width: metricsWidth,
+                    child: MetricsCard(
+                      metrics: state.metrics,
+                      videoWidget: VideoPlayerWidget(
+                        videoFromServerPath: state.videoFromServerPath,
+                        isViewRegistered: _isViewRegistered,
+                        videoViewId: _videoViewId,
                       ),
                     ),
-                  ),
-                ],
+                  );
+
+                  // Горизонтальная верстка для широких экранов
+                  if (isMedium) {
+                    return IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          leftColumn,
+                          const SizedBox(width: 24),
+                          metricsCard,
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Вертикальная верстка для узких экранов
+                  return Column(
+                    children: [
+                      leftColumn,
+                      const SizedBox(height: 24),
+                      metricsCard,
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+
+              // Кнопки действий
+              ButtonWidgets(
+                onRestartVideoSendButtonTap: () {
+                  vm.onRestartVideoSendButtonTap();
+                },
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class ButtonWidgets extends StatelessWidget {
+  const ButtonWidgets({super.key, required this.onRestartVideoSendButtonTap});
+
+  final VoidCallback onRestartVideoSendButtonTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      alignment: WrapAlignment.center,
+      children: [
+        FilledButton.icon(
+          onPressed: onRestartVideoSendButtonTap,
+          icon: const Icon(Icons.upload_file_rounded),
+          label: const Text('Загрузить новое видео'),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          ),
+        ),
+      ],
     );
   }
 }

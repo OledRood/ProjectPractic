@@ -71,67 +71,86 @@ enum TaskStatus {
   }
 }
 
-/// Результат обработки видео
+/// Результат обработки видео (данные от модели)
 class VideoResult {
-  final String exerciseType;
-  final String correctness;
-  final double confidence;
-  final int frameCount;
-  final String outputVideo;
+  /// Статус обработки: "ok" или "error"
+  final String status;
+  
+  /// Тип упражнения: "pushup", "pullup", "unknown"
+  final String? exercise;
+  
+  /// Уверенность модели в определении упражнения (0-100%)
+  final double? confidence;
+  
+  /// Список проблем с техникой (пустой = хорошая техника)
+  final List<String> techniqueIssues;
+  
+  /// Метрики углов: elbow_angle, torso_angle, knee_angle, shoulders_high
+  final Map<String, dynamic> metrics;
+  
+  /// Путь к обработанному видео
+  final String? outputVideo;
+  
+  /// Текст ошибки (если status == "error")
+  final String? error;
 
   VideoResult({
-    required this.exerciseType,
-    required this.correctness,
-    required this.confidence,
-    required this.frameCount,
-    required this.outputVideo,
+    required this.status,
+    this.exercise,
+    this.confidence,
+    this.techniqueIssues = const [],
+    this.metrics = const {},
+    this.outputVideo,
+    this.error,
   });
 
   factory VideoResult.fromJson(Map<String, dynamic> json) {
     return VideoResult(
-      exerciseType: json['exercise_type'] as String,
-      correctness: json['correctness'] as String,
-      confidence: (json['confidence'] as num).toDouble(),
-      frameCount: json['frame_count'] as int,
-      outputVideo: json['output_video'] as String,
+      status: json['status'] as String? ?? 'ok',
+      exercise: json['exercise'] as String?,
+      confidence: json['confidence'] != null 
+          ? (json['confidence'] as num).toDouble() 
+          : null,
+      techniqueIssues: json['technique_issues'] != null
+          ? List<String>.from(json['technique_issues'] as List)
+          : const [],
+      metrics: json['metrics'] != null
+          ? Map<String, dynamic>.from(json['metrics'] as Map)
+          : const {},
+      outputVideo: json['output_video'] as String?,
+      error: json['error'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'exercise_type': exerciseType,
-      'correctness': correctness,
-      'confidence': confidence,
-      'frame_count': frameCount,
-      'output_video': outputVideo,
+      'status': status,
+      if (exercise != null) 'exercise': exercise,
+      if (confidence != null) 'confidence': confidence,
+      'technique_issues': techniqueIssues,
+      'metrics': metrics,
+      if (outputVideo != null) 'output_video': outputVideo,
+      if (error != null) 'error': error,
     };
   }
 
-  /// Получение читаемого названия упражнения
-  String get exerciseTypeName {
-    switch (exerciseType) {
-      case 'push_up':
-        return 'Отжимания';
-      case 'squat':
-        return 'Приседания';
-      case 'long_jump':
-        return 'Прыжок в длину';
-      default:
-        return exerciseType;
-    }
-  }
+  /// Техника хорошая (нет проблем)
+  bool get isGoodTechnique => techniqueIssues.isEmpty && status == 'ok';
+  
+  /// Есть ошибка обработки
+  bool get hasError => status == 'error';
 
-  /// Получение читаемого статуса корректности
-  String get correctnessName {
-    switch (correctness) {
-      case 'correct':
-        return 'Правильно';
-      case 'incorrect':
-        return 'Неправильно';
-      case 'partial':
-        return 'Частично правильно';
+  /// Получение читаемого названия упражнения
+  String get exerciseDisplayName {
+    switch (exercise) {
+      case 'pushup':
+        return 'Отжимания';
+      case 'pullup':
+        return 'Подтягивания';
+      case 'unknown':
+        return 'Не определено';
       default:
-        return correctness;
+        return exercise ?? 'Не определено';
     }
   }
 }

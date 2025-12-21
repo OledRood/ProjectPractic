@@ -1,10 +1,8 @@
+/// Маршруты приложения (MVP без авторизации)
 enum AppRoutes {
-  signUpPage('/signUpPage'),
-  signInPage('/signInPage'),
-
-  getVideoPage('/getVidoPage'),
-  loadingPage('/loadingPage'),
-  resultPage('/resultPage');
+  getVideoPage('/'),
+  loadingPage('/loading'),
+  resultPage('/result');
 
   final String path;
 
