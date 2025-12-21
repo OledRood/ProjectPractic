@@ -13,14 +13,7 @@ class LoadingPage extends ConsumerWidget {
     if (state.taskId == null) {
       return 'Загрузка видео на сервер...';
     }
-
-    if (state.processingStage != null) {
-      return state.processingStage!;
-    }
-
-    return state.processingProgress != null
-        ? 'Обработка видео (${(state.processingProgress! * 100).toStringAsFixed(1)}%)'
-        : 'Обработка видео...';
+    return 'Анализ видео моделью...';
   }
 
   String _getEstimatedTime(VideoState state) {
@@ -117,20 +110,10 @@ class LoadingPage extends ConsumerWidget {
                 width: 400,
                 child: Column(
                   children: [
-                    LinearProgressIndicator(
-                      value: state.processingProgress,
+                    const LinearProgressIndicator(
                       minHeight: 8,
-                      borderRadius: const BorderRadius.all(Radius.circular(20)),
+                      borderRadius: BorderRadius.all(Radius.circular(20)),
                     ),
-                    const SizedBox(height: 8),
-                    if (state.processingProgress != null)
-                      Text(
-                        '${(state.processingProgress! * 100).toStringAsFixed(1)}%',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
                     const SizedBox(height: 16),
                     Text(
                       'Пожалуйста, не закрывайте эту страницу',

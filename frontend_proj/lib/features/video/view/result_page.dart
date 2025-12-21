@@ -77,32 +77,56 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     }
   }
 
-  String _getExerciseTypeName(String? exerciseType) {
-    if (exerciseType == null) return 'Не определено';
-    switch (exerciseType) {
-      case 'push_up':
+  String _getExerciseDisplayName(String? exercise) {
+    if (exercise == null) return 'Не определено';
+    switch (exercise) {
+      case 'pushup':
         return 'Отжимания';
-      case 'squat':
-        return 'Приседания';
-      case 'long_jump':
-        return 'Прыжок в длину';
+      case 'pullup':
+        return 'Подтягивания';
+      case 'unknown':
+        return 'Не определено';
       default:
-        return exerciseType;
+        return exercise;
     }
   }
 
-  String _getCorrectnessName(String? correctness) {
-    if (correctness == null) return 'Не определено';
-    switch (correctness) {
-      case 'correct':
-        return 'Правильно ✓';
-      case 'incorrect':
-        return 'Неправильно ✗';
-      case 'partial':
-        return 'Частично правильно';
+  /// Форматирование названия метрики для отображения
+  String _formatMetricName(String key) {
+    switch (key) {
+      case 'elbow_angle':
+        return 'Угол локтя';
+      case 'torso_angle':
+        return 'Угол туловища';
+      case 'knee_angle':
+        return 'Угол колена';
+      case 'shoulders_high':
+        return 'Плечи выше локтей';
       default:
-        return correctness;
+        return key;
     }
+  }
+
+  /// Форматирование значения метрики
+  String _formatMetricValue(dynamic value) {
+    if (value is bool) {
+      return value ? 'Да ✓' : 'Нет ✗';
+    } else if (value is double) {
+      return '${value.toStringAsFixed(1)}°';
+    } else if (value is int) {
+      return '$value°';
+    }
+    return value.toString();
+  }
+
+  /// Склонение слов в зависимости от числа
+  String _getPluralForm(int number, String one, String few, String many) {
+    final n = number % 100;
+    if (n >= 11 && n <= 19) return many;
+    final lastDigit = n % 10;
+    if (lastDigit == 1) return one;
+    if (lastDigit >= 2 && lastDigit <= 4) return few;
+    return many;
   }
 
   Widget _buildResultRow(
@@ -181,8 +205,59 @@ class _ResultPageState extends ConsumerState<ResultPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Карточка с результатами от сервера
-              if (state.exerciseType != null) ...[
+              // Карточка с ошибкой анализа (если есть)
+              if (state.analysisError != null) ...[
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.shadow.withOpacity(0.15),
+                        blurRadius: 24,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline_rounded,
+                        size: 48,
+                        color: colorScheme.error,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Ошибка анализа',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onErrorContainer,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              state.analysisError!,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ],
+
+              // Карточка с результатами от модели
+              if (state.exercise != null) ...[
                 Container(
                   constraints: const BoxConstraints(maxWidth: 800),
                   padding: const EdgeInsets.all(24),
@@ -228,24 +303,245 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                       _buildResultRow(
                         context,
                         'Тип упражнения',
-                        _getExerciseTypeName(state.exerciseType),
+                        _getExerciseDisplayName(state.exercise),
                         Icons.fitness_center_rounded,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildResultRow(
-                        context,
-                        'Правильность',
-                        _getCorrectnessName(state.correctness),
-                        Icons.check_circle_rounded,
                       ),
                       const SizedBox(height: 12),
                       _buildResultRow(
                         context,
                         'Уверенность модели',
                         state.confidence != null
-                            ? '${(state.confidence! * 100).toStringAsFixed(1)}%'
+                            ? '${state.confidence!.toStringAsFixed(1)}%'
                             : 'Не определено',
                         Icons.speed_rounded,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // Карточка с оценкой техники
+              if (state.exercise != null) ...[
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: (state.techniqueIssues?.isEmpty ?? true)
+                        ? colorScheme.primaryContainer.withOpacity(0.3)
+                        : colorScheme.errorContainer.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: (state.techniqueIssues?.isEmpty ?? true)
+                          ? colorScheme.primary.withOpacity(0.3)
+                          : colorScheme.error.withOpacity(0.3),
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            (state.techniqueIssues?.isEmpty ?? true)
+                                ? Icons.check_circle_rounded
+                                : Icons.warning_rounded,
+                            size: 32,
+                            color: (state.techniqueIssues?.isEmpty ?? true)
+                                ? colorScheme.primary
+                                : colorScheme.error,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Оценка техники',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      if (state.techniqueIssues?.isEmpty ?? true) ...[
+                        // Хорошая техника
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.thumb_up_rounded,
+                                color: colorScheme.primary,
+                                size: 28,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Техника идеальна! ✓',
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color:
+                                                colorScheme.onPrimaryContainer,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Предупреждений не обнаружено',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: colorScheme
+                                                .onPrimaryContainer
+                                                .withOpacity(0.8),
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        // Есть проблемы с техникой
+                        Text(
+                          'Обнаружено ${state.techniqueIssues!.length} ${_getPluralForm(state.techniqueIssues!.length, 'проблема', 'проблемы', 'проблем')}:',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.error,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ...state.techniqueIssues!.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final issue = entry.value;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.errorContainer,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.error,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${index + 1}',
+                                        style: TextStyle(
+                                          color: colorScheme.onError,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      issue,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: colorScheme.onErrorContainer,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // Карточка с метриками
+              if (state.metrics != null && state.metrics!.isNotEmpty) ...[
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: colorScheme.outline.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.straighten_rounded,
+                            size: 32,
+                            color: colorScheme.tertiary,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Измеренные углы',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: state.metrics!.entries.map((entry) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorScheme.tertiaryContainer,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _formatMetricName(entry.key),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onTertiaryContainer
+                                        .withOpacity(0.7),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _formatMetricValue(entry.value),
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.onTertiaryContainer,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ],
                   ),
