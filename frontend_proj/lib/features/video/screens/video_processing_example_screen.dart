@@ -117,6 +117,7 @@ class _VideoProcessingExampleScreenState
 
   /// Диалог с результатами
   void _showSuccessDialog(VideoTask task) {
+    final result = task.result!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -125,15 +126,21 @@ class _VideoProcessingExampleScreenState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Упражнение: ${task.result!.exerciseTypeName}'),
+            Text('Упражнение: ${result.exerciseDisplayName}'),
             const SizedBox(height: 8),
-            Text('Корректность: ${task.result!.correctnessName}'),
+            if (result.confidence != null)
+              Text('Уверенность: ${result.confidence!.toStringAsFixed(1)}%'),
             const SizedBox(height: 8),
-            Text(
-              'Уверенность: ${(task.result!.confidence * 100).toStringAsFixed(1)}%',
-            ),
-            const SizedBox(height: 8),
-            Text('Кадров: ${task.result!.frameCount}'),
+            if (result.isGoodTechnique)
+              const Text(
+                'Техника: Идеальна ✓',
+                style: TextStyle(color: Colors.green),
+              )
+            else if (result.techniqueIssues.isNotEmpty)
+              Text(
+                'Проблем с техникой: ${result.techniqueIssues.length}',
+                style: const TextStyle(color: Colors.orange),
+              ),
           ],
         ),
         actions: [
