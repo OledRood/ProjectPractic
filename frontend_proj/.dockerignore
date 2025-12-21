@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Dart/Flutter
+.dart_tool
+.packages
+build/
+*.lock.json
+.metadata
+
+# IDE
+.vscode
+.idea
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Platform
+android/
+ios/
+linux/
+macos/
+windows/
+test/
+.ci/
+
+# Node modules (if web build uses node)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Coverage
+coverage/
+.coverage
