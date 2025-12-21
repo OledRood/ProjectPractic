@@ -159,19 +159,19 @@ class VideoResult {
 class UploadResponse {
   final String taskId;
   final TaskStatus status;
-  final String message;
+  final String? message;
 
   UploadResponse({
     required this.taskId,
     required this.status,
-    required this.message,
+    this.message,
   });
 
   factory UploadResponse.fromJson(Map<String, dynamic> json) {
     return UploadResponse(
       taskId: json['task_id'] as String,
       status: TaskStatus.fromString(json['status'] as String),
-      message: json['message'] as String,
+      message: json['message'] as String?,
     );
   }
 }

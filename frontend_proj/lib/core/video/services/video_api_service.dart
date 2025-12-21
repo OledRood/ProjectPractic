@@ -110,7 +110,7 @@ class VideoApiService {
         },
       );
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         return UploadResponse.fromJson(response.data);
       } else {
         throw VideoApiException(
@@ -176,7 +176,7 @@ class VideoApiService {
         },
       );
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         return UploadResponse.fromJson(response.data);
       } else {
         throw VideoApiException(

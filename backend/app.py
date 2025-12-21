@@ -10,7 +10,20 @@ import logging
 import os
 import time
 import json
-from model_client import ModelClient
+import sys
+
+# Add path to model code
+# Assuming backend/ is current dir, model code is in ../moi-main/project_root
+# We need to add the parent of 'src' to sys.path so we can do 'from src.backend_api import ...'
+MODEL_ROOT = Path(__file__).parent.parent / "moi-main" / "project_root"
+sys.path.append(str(MODEL_ROOT))
+
+try:
+    from src.backend_api import analyze_video_for_backend
+except ImportError as e:
+    logger.error(f"Failed to import model: {e}")
+    # Fallback for development if paths are different
+    pass
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -21,19 +34,17 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/")
 async def root():
-    return {"message": "Backend is running. Go to /docs for API."}
+    return {"message": "Backend is running (Integrated Model). Go to /docs for API."}
 
 # Configuration
-UPLOAD_DIR = Path("/tmp/uploads")
+UPLOAD_DIR = Path("tmp/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Queue and Tasks
 task_queue = asyncio.Queue(maxsize=100)
 active_tasks = 0
-MAX_CONCURRENT = 3
+MAX_CONCURRENT = 1 # Reduce concurrency since model is heavy
 tasks = {}  # {task_id: task_data}
-
-model_client = ModelClient()
 
 @app.get("/api/health")
 async def health_check():
@@ -121,13 +132,9 @@ async def worker():
             video_path = Path(tasks[task_id]["video_path"])
             rotation = tasks[task_id].get("rotation")
             
-            # Call model
-            # Pass rotation if needed, or other args
-            kwargs = {}
-            if rotation:
-                kwargs["rotation"] = rotation
-                
-            result = await model_client.process_video(video_path, **kwargs)
+            # Call model directly in thread pool to avoid blocking
+            logger.info(f"Starting model analysis for {video_path}")
+            result = await asyncio.to_thread(analyze_video_for_backend, str(video_path))
             
             tasks[task_id]["status"] = "completed"
             tasks[task_id]["result"] = result
@@ -149,6 +156,11 @@ async def worker():
 
 @app.on_event("startup")
 async def startup():
+    logger.info("------------------------------------------------")
+    logger.info(f"Backend started (Integrated Model Mode).")
+    logger.info(f"Upload Directory: {UPLOAD_DIR}")
+    logger.info(f"Model Root: {MODEL_ROOT}")
+    logger.info("------------------------------------------------")
     asyncio.create_task(worker())
 
 if __name__ == '__main__':
