@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:frontend_proj/core/auth/auth_di.dart';
-import 'package:frontend_proj/core/navigation/app_routes.dart';
 import 'package:frontend_proj/features/video/video_di.dart';
 import 'package:frontend_proj/features/video/models/video_state.dart';
-import 'package:go_router/go_router.dart';
 
 class LoadingPage extends ConsumerWidget {
   const LoadingPage({super.key});
@@ -36,21 +33,7 @@ class LoadingPage extends ConsumerWidget {
     debugPrint('LoadingPage: status=${state.status}, taskId=${state.taskId}');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Обработка видео'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Выйти',
-            onPressed: () async {
-              await ref.read(authNotifierProvider.notifier).signOut();
-              if (context.mounted) {
-                context.go(AppRoutes.signInPage.path);
-              }
-            },
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Обработка видео')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),

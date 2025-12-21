@@ -4,24 +4,11 @@ import 'package:frontend_proj/core/navigation/app_routes.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:flutter/foundation.dart';
 
+/// Навигация приложения (MVP без авторизации)
 class AppNavigation {
   final GoRouter _router;
 
   AppNavigation(this._router);
-
-  void goToSignIn() {
-    debugPrint(
-      'Navigation: going to SignInPage (${AppRoutes.signInPage.path})',
-    );
-    _router.go(AppRoutes.signInPage.path);
-  }
-
-  void goToSignUp() {
-    debugPrint(
-      'Navigation: going to SignUpPage (${AppRoutes.signUpPage.path})',
-    );
-    _router.go(AppRoutes.signUpPage.path);
-  }
 
   void goToGetVideo() {
     debugPrint(
