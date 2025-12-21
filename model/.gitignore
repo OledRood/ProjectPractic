@@ -1,6 +1,0 @@
-project_root/venv/
-venv/
-*.so
-*.dylib
-*.pyc
-__pycache__/
