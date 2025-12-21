@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - moi_model
+    volumes:
+      - ./backend/tmp:/tmp
+    environment:
+      - MODEL_SERVICE_URL=http://moi_model:8001
+
+  moi_model:
+    build: ./moi-main
+    ports:
+      - "8001:8001"
