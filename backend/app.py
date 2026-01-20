@@ -13,11 +13,9 @@ import json
 import sys
 import numpy as np
 
-# Logging setup (перенесён выше импортов модели)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Helper for JSON serialization of NumPy types
 def convert_numpy(obj):
     if isinstance(obj, (np.integer, np.int64, np.int32)):
         return int(obj)
@@ -27,7 +25,6 @@ def convert_numpy(obj):
         return obj.tolist()
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
-# Add path to model code
 # В Docker: модель находится в /app/model (через PYTHONPATH)
 # Локально: модель находится в ../moi-main/project_root
 MODEL_ROOT_DOCKER = Path("/app/model")
@@ -40,14 +37,12 @@ else:
     MODEL_ROOT = MODEL_ROOT_LOCAL
     logger.info(f"Using local model path: {MODEL_ROOT}")
 
-# Добавляем src в sys.path, чтобы внутренние импорты модели (например, import quick_predict) работали корректно
 sys.path.insert(0, str(MODEL_ROOT / "src"))
 sys.path.insert(0, str(MODEL_ROOT))
 
 # Импорт модели с обработкой ошибок
 analyze_video_for_backend = None
 try:
-    # Теперь можно импортировать напрямую из backend_api, так как src в пути
     from backend_api import analyze_video_for_backend
     logger.info("✅ Model imported successfully")
 except ImportError as e:
@@ -63,16 +58,15 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 async def root():
     return {"message": "Backend is running (Integrated Model). Go to /docs for API."}
 
-# Configuration
 UPLOAD_DIR = Path("tmp/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-# Queue and Tasks
 task_queue = asyncio.Queue(maxsize=100)
 active_tasks = 0
 MAX_CONCURRENT = 1 # Reduce concurrency since model is heavy
 tasks = {}  # {task_id: task_data}
 
+# Эндпоинты
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok"}
@@ -138,12 +132,6 @@ async def get_result(task_id: str):
     if "result" not in task:
         raise HTTPException(status_code=404, detail="Result not found")
         
-    # Frontend expects the VIDEO FILE at this endpoint, not the JSON result.
-    # The JSON result is obtained via the polling status endpoint.
-    
-    # Construct path to the generated skeleton video
-    # Filename format from quick_predict.py: {video_stem}_skeleton.mp4
-    # video_stem is task_id
     output_filename = f"{task_id}_skeleton.mp4"
     output_path = MODEL_ROOT / "data" / "output_videos" / output_filename
     
